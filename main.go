@@ -4,14 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"html/template"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 const goSensorPackage = "github.com/instana/go-sensor"
@@ -54,7 +58,7 @@ func main() {
 	for _, path := range paths {
 		pkgs, err := parser.ParseDir(fset, path, func(fInfo os.FileInfo) bool {
 			return !strings.HasSuffix(fInfo.Name(), "_test.go")
-		}, 0)
+		}, parser.ParseComments)
 		if err != nil {
 			log.Fatalf("failed to parse source files in %q: %s", path, err)
 		}
@@ -76,23 +80,15 @@ func main() {
 
 			fmt.Printf("%s.%s\n", pkg.Name, sensorName)
 
-			/*
-				if pkg.Name == "main" {
-					if err := InstrumentMain(path); err != nil {
-						log.Printf("failed to metrics collector activation code to %s: %s", path, err)
-					}
+			for fName, f := range pkg.Files {
+				fd, err := os.Create(fName)
+				if err != nil {
+					log.Fatalf("failed to open %s for writing: %s", fName, err)
 				}
 
-				for fName, f := range pkg.Files {
-					fd, err := os.Create(fName)
-					if err != nil {
-						log.Fatalf("failed to open %s for writing: %s", fName, err)
-					}
-
-					format.Node(fd, token.NewFileSet(), Instrument(f))
-					fd.Close()
-				}
-			*/
+				format.Node(fd, token.NewFileSet(), Instrument(f, sensorName))
+				fd.Close()
+			}
 		}
 	}
 }
@@ -105,6 +101,10 @@ func LookupInstanaSensor(pkg *ast.Package) string {
 	}
 
 	for _, f := range pkg.Files {
+		if !astutil.UsesImport(f, goSensorPackage) {
+			continue
+		}
+
 		if n := lookupInstanaSensor(f.Scope); n != "" {
 			return n
 		}
@@ -120,6 +120,11 @@ func lookupInstanaSensor(sc *ast.Scope) string {
 
 	for _, obj := range sc.Objects {
 		if obj.Kind != ast.Var {
+			continue
+		}
+
+		_, ok := obj.Decl.(*ast.ValueSpec)
+		if !ok {
 			continue
 		}
 
@@ -174,4 +179,53 @@ func AddInstanaSensor(pkgName, path string) (string, error) {
 	}
 
 	return defaultSensorName, nil
+}
+
+func Instrument(f *ast.File, sensorVar string) ast.Node {
+	var (
+		instrumented bool
+		result       ast.Node = f
+	)
+
+	for pkgName, targetPkg := range buildImportsMap(f) {
+		switch targetPkg {
+		case "net/http":
+			recipe := NetHTTPRecipe{
+				InstanaPkg: "instana",
+				TargetPkg:  pkgName,
+				SensorVar:  sensorVar,
+			}
+
+			node, changed := recipe.Instrument(result)
+			instrumented = instrumented || changed
+			result = node
+		}
+	}
+
+	if instrumented && !astutil.UsesImport(f, goSensorPackage) {
+		astutil.AddNamedImport(token.NewFileSet(), result.(*ast.File), "instana", goSensorPackage)
+	}
+
+	return result
+}
+
+func buildImportsMap(f *ast.File) map[string]string {
+	m := make(map[string]string)
+	for _, imp := range f.Imports {
+		if imp.Path == nil {
+			log.Printf("missing .Path in %#v", imp)
+			continue
+		}
+
+		impPath := strings.Trim(imp.Path.Value, `"`)
+
+		localName := path.Base(impPath)
+		if imp.Name != nil {
+			localName = imp.Name.Name
+		}
+
+		m[localName] = impPath
+	}
+
+	return m
 }
