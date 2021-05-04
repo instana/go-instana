@@ -91,3 +91,34 @@ func TestNetHTTPRecipe_Ignore(t *testing.T) {
 		})
 	}
 }
+
+func TestNetHTTPRecipe_InstrumentedCode(t *testing.T) {
+	examples := map[string]string{
+		"inline handler body": `http.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", func(w http.ResponseWriter, req *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}))`,
+		"http.HandlerFunc variable": `http.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", http.NotFound))`,
+		"http.Handle":               `http.Handle("/", http.HandlerFunc(instana.TracingHandlerFunc(__instanaSensor, "/", http.FileServer(root).ServeHTTP)))`,
+		"aliased net/http":          `custom.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", custom.NotFound))`,
+	}
+
+	for name, example := range examples {
+		t.Run(name, func(t *testing.T) {
+			node, err := parser.ParseExpr(example)
+			require.NoError(t, err)
+
+			instrumented, changed := NetHTTPRecipe{
+				InstanaPkg: "instana",
+				TargetPkg:  "http",
+				SensorVar:  "__instanaSensor",
+			}.Instrument(node)
+
+			assert.False(t, changed)
+
+			buf := bytes.NewBuffer(nil)
+			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+
+			assert.Equal(t, example, buf.String())
+		})
+	}
+}
