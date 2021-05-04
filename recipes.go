@@ -85,19 +85,3 @@ func (recipe NetHTTPRecipe) Instrument(node ast.Node) (result ast.Node, changed 
 
 	return result, changed
 }
-
-func extractFunctionName(call *ast.CallExpr) (string, string, bool) {
-	switch fn := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		switch selector := fn.X.(type) {
-		case *ast.Ident:
-			return selector.Name, fn.Sel.Name, true
-		default:
-			return "", "", false
-		}
-	case *ast.Ident:
-		return "", fn.Name, true
-	default:
-		return "", "", false
-	}
-}

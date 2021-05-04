@@ -79,7 +79,6 @@ func main() {
 			}
 
 			fmt.Printf("%s.%s\n", pkg.Name, sensorName)
-
 			for fName, f := range pkg.Files {
 				fd, err := os.Create(fName)
 				if err != nil {
@@ -123,12 +122,28 @@ func lookupInstanaSensor(sc *ast.Scope) string {
 			continue
 		}
 
-		_, ok := obj.Decl.(*ast.ValueSpec)
+		// Is this a var declaration?
+		valSpec, ok := obj.Decl.(*ast.ValueSpec)
 		if !ok {
 			continue
 		}
 
-		return obj.Name
+		// Does it have type specified? If so, this might be a global sensor
+		// variable initialized later. We need to check whether it's an instana.Sensor
+		if valSpec.Type != nil {
+			if pkg, typ, ok := extractSelectorPackageAndName(valSpec.Type); ok && pkg == "instana" && typ == "Sensor" {
+				return obj.Name
+			}
+		}
+
+		// Inline initialization? Let's have a look if there is an instana.NewSensor*() in the values list
+		for i, val := range valSpec.Values {
+			if fnCall, ok := val.(*ast.CallExpr); ok {
+				if pkg, fn, ok := extractFunctionName(fnCall); ok && pkg == "instana" && strings.HasPrefix(fn, "NewSensor") {
+					return valSpec.Names[i].Name
+				}
+			}
+		}
 	}
 
 	return ""
@@ -228,4 +243,33 @@ func buildImportsMap(f *ast.File) map[string]string {
 	}
 
 	return m
+}
+
+func extractFunctionName(call *ast.CallExpr) (string, string, bool) {
+	switch fn := call.Fun.(type) {
+	case *ast.SelectorExpr:
+		switch selector := fn.X.(type) {
+		case *ast.Ident:
+			return selector.Name, fn.Sel.Name, true
+		default:
+			return "", "", false
+		}
+	case *ast.Ident:
+		return "", fn.Name, true
+	default:
+		return "", "", false
+	}
+}
+
+func extractSelectorPackageAndName(typ ast.Expr) (string, string, bool) {
+	switch typ := typ.(type) {
+	case *ast.SelectorExpr:
+		if pkg, ok := typ.X.(*ast.Ident); ok {
+			return pkg.Name, typ.Sel.Name, true
+		}
+	case *ast.StarExpr:
+		return extractSelectorPackageAndName(typ.X)
+	}
+
+	return "", "", false
 }

@@ -18,7 +18,8 @@ func main() {
 	http.Handle("/assets", http.FileServer(http.Dir("assets/")))
 
 	// Start the server
+	logger.Println("Starting server...")
 	if err := http.ListenAndServe(":0", nil); err != nil {
-		log.Fatalln(err)
+		logger.Fatalln(err)
 	}
 }
