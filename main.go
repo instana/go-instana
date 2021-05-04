@@ -86,7 +86,7 @@ func main() {
 					log.Fatalf("failed to open %s for writing: %s", fName, err)
 				}
 
-				format.Node(fd, token.NewFileSet(), Instrument(f, sensorName))
+				format.Node(fd, fset, Instrument(fset, f, sensorName))
 				fd.Close()
 			}
 		}
@@ -181,7 +181,7 @@ func AddInstanaSensor(pkgName, path string) (string, error) {
 	return defaultSensorName, nil
 }
 
-func Instrument(f *ast.File, sensorVar string) ast.Node {
+func Instrument(fset *token.FileSet, f *ast.File, sensorVar string) ast.Node {
 	var (
 		instrumented bool
 		result       ast.Node = f
@@ -203,7 +203,7 @@ func Instrument(f *ast.File, sensorVar string) ast.Node {
 	}
 
 	if instrumented && !astutil.UsesImport(f, goSensorPackage) {
-		astutil.AddNamedImport(token.NewFileSet(), result.(*ast.File), "instana", goSensorPackage)
+		astutil.AddNamedImport(fset, result.(*ast.File), "instana", goSensorPackage)
 	}
 
 	return result
