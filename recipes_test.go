@@ -34,7 +34,7 @@ func TestNetHTTPRecipe(t *testing.T) {
 		"http.Handle": {
 			TargetPkg: "http",
 			Code:      `http.Handle("/", http.FileServer(root))`,
-			Expected:  `http.Handle("/", http.HandlerFunc(instana.TracingHandlerFunc(__instanaSensor, "/", http.FileServer(root).ServeHTTP)))`,
+			Expected:  `http.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", http.FileServer(root).ServeHTTP))`,
 		},
 		"aliased net/http": {
 			TargetPkg: "custom",
@@ -98,7 +98,7 @@ func TestNetHTTPRecipe_InstrumentedCode(t *testing.T) {
 	w.WriteHeader(http.StatusNoContent)
 }))`,
 		"http.HandlerFunc variable": `http.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", http.NotFound))`,
-		"http.Handle":               `http.Handle("/", http.HandlerFunc(instana.TracingHandlerFunc(__instanaSensor, "/", http.FileServer(root).ServeHTTP)))`,
+		"http.Handle":               `http.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", http.FileServer(root).ServeHTTP))`,
 		"aliased net/http":          `custom.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", custom.NotFound))`,
 	}
 

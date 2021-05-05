@@ -45,7 +45,7 @@ func (recipe NetHTTPRecipe) instrumentMethodCall(call *ast.CallExpr) bool {
 
 	switch fnName {
 	case "HandleFunc":
-		handler := call.Args[len(call.Args)-1]
+		handler := call.Args[1]
 
 		// Double instrumentation check: handler is not an already insturmented http.HandlerFunc?
 		if _, ok := assertFunctionName(handler, recipe.InstanaPkg, "TracingHandlerFunc"); ok {
@@ -56,21 +56,11 @@ func (recipe NetHTTPRecipe) instrumentMethodCall(call *ast.CallExpr) bool {
 
 		log.Println("instrumenting net/http.HandleFunc() call at pos", call.Pos())
 
-		call.Args[len(call.Args)-1] = &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(recipe.InstanaPkg),
-				Sel: ast.NewIdent("TracingHandlerFunc"),
-			},
-			Args: []ast.Expr{
-				ast.NewIdent(recipe.SensorVar),
-				call.Args[0], // pathTemplate
-				handler,      // handler
-			},
-		}
+		recipe.instrumentHandleFunc(call, handler)
 
 		return true
 	case "Handle":
-		handler := call.Args[len(call.Args)-1]
+		handler := call.Args[1]
 
 		// Double instrumentation check: handler is not an already insturmented http.HandlerFunc?
 		if call, ok := assertFunctionName(handler, recipe.TargetPkg, "HandlerFunc"); ok {
@@ -85,33 +75,36 @@ func (recipe NetHTTPRecipe) instrumentMethodCall(call *ast.CallExpr) bool {
 
 		log.Println("instrumenting net/http.Handle() call at pos", call.Pos())
 
-		call.Args[len(call.Args)-1] = &ast.CallExpr{
-			Fun: &ast.SelectorExpr{
-				X:   ast.NewIdent(recipe.TargetPkg),
-				Sel: ast.NewIdent("HandlerFunc"),
-			},
-			Args: []ast.Expr{
-				&ast.CallExpr{
-					Fun: &ast.SelectorExpr{
-						X:   ast.NewIdent(recipe.InstanaPkg),
-						Sel: ast.NewIdent("TracingHandlerFunc"),
-					},
-					Args: []ast.Expr{
-						ast.NewIdent(recipe.SensorVar),
-						call.Args[0], // pathTemplate
-						&ast.SelectorExpr{
-							X:   handler,
-							Sel: ast.NewIdent("ServeHTTP"),
-						}, // wrap handler's ServeHTTP() method
-					},
-				},
-			},
-		}
+		// Replace http.Handle with http.HandlerFunc, since instana.TracingHandleFunc() returns
+		// a function instead of http.Handler
+		call.Fun.(*ast.SelectorExpr).Sel.Name = "HandleFunc"
+		recipe.instrumentHandleFunc(call, &ast.SelectorExpr{
+			X:   handler,
+			Sel: ast.NewIdent("ServeHTTP"),
+		})
 
 		return true
 	default:
 		return false
 	}
+}
+
+func (recipe NetHTTPRecipe) instrumentHandleFunc(call *ast.CallExpr, handler ast.Expr) {
+	call.Args[1] = &ast.CallExpr{
+		Fun: &ast.SelectorExpr{
+			X:   ast.NewIdent(recipe.InstanaPkg),
+			Sel: ast.NewIdent("TracingHandlerFunc"),
+		},
+		Args: []ast.Expr{
+			ast.NewIdent(recipe.SensorVar),
+			call.Args[0], // pathTemplate
+			handler,      // handler
+		},
+	}
+}
+
+func (recipe NetHTTPRecipe) instrumentValueInit(spec *ast.ValueSpec) {
+
 }
 
 func assertFunctionName(node ast.Expr, pkg, fn string) (*ast.CallExpr, bool) {
