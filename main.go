@@ -80,16 +80,35 @@ func main() {
 
 			fmt.Printf("%s.%s\n", pkg.Name, sensorName)
 			for fName, f := range pkg.Files {
-				fd, err := os.Create(fName)
-				if err != nil {
-					log.Fatalf("failed to open %s for writing: %s", fName, err)
-				}
+				log.Printf("processing %s...", fName)
 
-				format.Node(fd, fset, Instrument(fset, f, sensorName))
-				fd.Close()
+				if err := processFile(fset, sensorName, fName, f); err != nil {
+					log.Printf("failed to process %s: %s", fName, err)
+					continue
+				}
 			}
 		}
 	}
+}
+
+func processFile(fset *token.FileSet, sensorName, fName string, f *ast.File) error {
+	tmpFile := fName + ".tmp"
+
+	fd, err := os.Create(tmpFile)
+	if err != nil {
+		log.Fatalf("failed to open %s for writing: %s", fName, err)
+	}
+
+	defer os.Remove(tmpFile)
+
+	err = format.Node(fd, fset, Instrument(fset, f, sensorName))
+	fd.Close()
+
+	if err != nil {
+		return fmt.Errorf("failed to format instrumented code: %w", err)
+	}
+
+	return os.Rename(tmpFile, fName)
 }
 
 // LookupInstanaSensor searches for the first instana.Sensor instance available in the package
@@ -205,6 +224,7 @@ func Instrument(fset *token.FileSet, f *ast.File, sensorVar string) ast.Node {
 	for pkgName, targetPkg := range buildImportsMap(f) {
 		switch targetPkg {
 		case "net/http":
+			log.Printf("instrumenting net/http")
 			recipe := NetHTTPRecipe{
 				InstanaPkg: "instana",
 				TargetPkg:  pkgName,
