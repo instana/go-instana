@@ -26,6 +26,8 @@ func (recipe NetHTTPRecipe) Instrument(node ast.Node) (result ast.Node, changed 
 		switch node := c.Node().(type) {
 		case *ast.CallExpr:
 			changed = recipe.instrumentMethodCall(node) || changed
+		case *ast.CompositeLit:
+			changed = recipe.instrumentCompositeLit(c, node) || changed
 		}
 
 		return true
@@ -35,7 +37,6 @@ func (recipe NetHTTPRecipe) Instrument(node ast.Node) (result ast.Node, changed 
 func (recipe NetHTTPRecipe) instrumentMethodCall(call *ast.CallExpr) bool {
 	pkgName, fnName, ok := extractFunctionName(call)
 	if !ok {
-		log.Printf("failed to extract function name from %#v", call)
 		return false
 	}
 
@@ -103,8 +104,67 @@ func (recipe NetHTTPRecipe) instrumentHandleFunc(call *ast.CallExpr, handler ast
 	}
 }
 
-func (recipe NetHTTPRecipe) instrumentValueInit(spec *ast.ValueSpec) {
+func (recipe NetHTTPRecipe) instrumentCompositeLit(c *astutil.Cursor, lit *ast.CompositeLit) bool {
+	pkg, name, ok := extractSelectorPackageAndName(lit.Type)
+	if !ok || pkg != recipe.TargetPkg {
+		return false
+	}
 
+	switch name {
+	case "Client":
+		// Check if this http.Client initializes its Transport already
+		for _, el := range lit.Elts {
+			kv, ok := el.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+
+			key, ok := kv.Key.(*ast.Ident)
+			if !ok {
+				continue
+			}
+
+			if key.Name == "Transport" {
+				// Double instrumentation check: is the transport already wrapped?
+				if call, ok := kv.Value.(*ast.CallExpr); ok {
+					if pkg, name, ok := extractFunctionName(call); ok && pkg == recipe.InstanaPkg && name == "RoundTripper" {
+						log.Println("skipping an already instrumented (*http.Client).Transport at pos", kv.Value.Pos())
+
+						return false
+					}
+				}
+
+				log.Println("instrumenting (*http.Client).Transport at pos", kv.Value.Pos())
+				kv.Value = recipe.instrumentTransport(kv.Value)
+
+				return true
+			}
+		}
+
+		// Initialize (http.Client).Transport otherwise with instana.RoundTripper
+		log.Println("instrumenting *http.Client at pos", lit.Pos())
+		lit.Elts = append(lit.Elts, &ast.KeyValueExpr{
+			Key:   ast.NewIdent("Transport"),
+			Value: recipe.instrumentTransport(ast.NewIdent("nil")),
+		})
+
+		return true
+	}
+
+	return false
+}
+
+func (recipe NetHTTPRecipe) instrumentTransport(orig ast.Expr) ast.Expr {
+	return &ast.CallExpr{
+		Fun: &ast.SelectorExpr{
+			X:   ast.NewIdent(recipe.InstanaPkg),
+			Sel: ast.NewIdent("RoundTripper"),
+		},
+		Args: []ast.Expr{
+			ast.NewIdent(recipe.SensorVar),
+			orig,
+		},
+	}
 }
 
 func assertFunctionName(node ast.Expr, pkg, fn string) (*ast.CallExpr, bool) {

@@ -36,6 +36,16 @@ func TestNetHTTPRecipe(t *testing.T) {
 			Code:      `http.Handle("/", http.FileServer(root))`,
 			Expected:  `http.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", http.FileServer(root).ServeHTTP))`,
 		},
+		"http.Client init": {
+			TargetPkg: "http",
+			Code:      `http.Client{Timeout: 5 * time.Second}`,
+			Expected:  `http.Client{Timeout: 5 * time.Second, Transport: instana.RoundTripper(__instanaSensor, nil)}`,
+		},
+		"http.Client init with custom transport": {
+			TargetPkg: "http",
+			Code:      `http.Client{Timeout: 5 * time.Second, Transport: custom}`,
+			Expected:  `http.Client{Timeout: 5 * time.Second, Transport: instana.RoundTripper(__instanaSensor, custom)}`,
+		},
 		"aliased net/http": {
 			TargetPkg: "custom",
 			Code:      `custom.HandleFunc("/", custom.NotFound)`,
@@ -99,6 +109,7 @@ func TestNetHTTPRecipe_InstrumentedCode(t *testing.T) {
 }))`,
 		"http.HandlerFunc variable": `http.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", http.NotFound))`,
 		"http.Handle":               `http.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", http.FileServer(root).ServeHTTP))`,
+		"http.Client init":          `http.Client{Timeout: 5 * time.Second, Transport: instana.RoundTripper(__instanaSensor, custom)}`,
 		"aliased net/http":          `custom.HandleFunc("/", instana.TracingHandlerFunc(__instanaSensor, "/", custom.NotFound))`,
 	}
 
