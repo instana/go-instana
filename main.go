@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/instana/go-instana/recipes"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -150,7 +151,7 @@ func lookupInstanaSensor(sc *ast.Scope) string {
 		// Does it have type specified? If so, this might be a global sensor
 		// variable initialized later. We need to check whether it's an instana.Sensor
 		if valSpec.Type != nil {
-			if pkg, typ, ok := extractSelectorPackageAndName(valSpec.Type); ok && pkg == "instana" && typ == "Sensor" {
+			if pkg, typ := extractSelectorPackageAndName(valSpec.Type); pkg == "instana" && typ == "Sensor" {
 				return obj.Name
 			}
 		}
@@ -158,7 +159,8 @@ func lookupInstanaSensor(sc *ast.Scope) string {
 		// Inline initialization? Let's have a look if there is an instana.NewSensor*() in the values list
 		for i, val := range valSpec.Values {
 			if fnCall, ok := val.(*ast.CallExpr); ok {
-				if pkg, fn, ok := extractFunctionName(fnCall); ok && pkg == "instana" && strings.HasPrefix(fn, "NewSensor") {
+				pkg, fnName := extractSelectorPackageAndName(fnCall.Fun)
+				if pkg == "instana" && strings.HasPrefix(fnName, "NewSensor") {
 					return valSpec.Names[i].Name
 				}
 			}
@@ -215,6 +217,7 @@ func AddInstanaSensor(pkgName, path string) (string, error) {
 	return defaultSensorName, nil
 }
 
+// Instrument processes an ast.File and applies instrumentation recipes to it
 func Instrument(fset *token.FileSet, f *ast.File, sensorVar string) ast.Node {
 	var (
 		instrumented bool
@@ -225,7 +228,7 @@ func Instrument(fset *token.FileSet, f *ast.File, sensorVar string) ast.Node {
 		switch targetPkg {
 		case "net/http":
 			log.Printf("instrumenting net/http")
-			recipe := NetHTTPRecipe{
+			recipe := recipes.NetHTTP{
 				InstanaPkg: "instana",
 				TargetPkg:  pkgName,
 				SensorVar:  sensorVar,
@@ -265,31 +268,15 @@ func buildImportsMap(f *ast.File) map[string]string {
 	return m
 }
 
-func extractFunctionName(call *ast.CallExpr) (string, string, bool) {
-	switch fn := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		switch selector := fn.X.(type) {
-		case *ast.Ident:
-			return selector.Name, fn.Sel.Name, true
-		default:
-			return "", "", false
-		}
-	case *ast.Ident:
-		return "", fn.Name, true
-	default:
-		return "", "", false
-	}
-}
-
-func extractSelectorPackageAndName(typ ast.Expr) (string, string, bool) {
+func extractSelectorPackageAndName(typ ast.Expr) (string, string) {
 	switch typ := typ.(type) {
 	case *ast.SelectorExpr:
 		if pkg, ok := typ.X.(*ast.Ident); ok {
-			return pkg.Name, typ.Sel.Name, true
+			return pkg.Name, typ.Sel.Name
 		}
 	case *ast.StarExpr:
 		return extractSelectorPackageAndName(typ.X)
 	}
 
-	return "", "", false
+	return "", ""
 }
