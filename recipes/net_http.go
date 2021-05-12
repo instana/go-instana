@@ -1,4 +1,4 @@
-package main
+package recipes
 
 import (
 	"go/ast"
@@ -7,19 +7,15 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 )
 
-type Instrumenter interface {
-	Instrument(ast.Node) (ast.Node, bool)
-}
-
-// NetHTTPRecipe instruments net/http package with Instana
-type NetHTTPRecipe struct {
+// NetHTTP instruments net/http package with Instana
+type NetHTTP struct {
 	InstanaPkg string
 	TargetPkg  string
 	SensorVar  string
 }
 
-// Instrument instruments net/http.HandleFunc and net/http.Handle calls
-func (recipe NetHTTPRecipe) Instrument(node ast.Node) (result ast.Node, changed bool) {
+// Instrument instruments net/http.HandleFunc and net/http.Handle calls as well as (http.Client).Transport
+func (recipe NetHTTP) Instrument(node ast.Node) (result ast.Node, changed bool) {
 	return astutil.Apply(node, func(c *astutil.Cursor) bool {
 		return true
 	}, func(c *astutil.Cursor) bool {
@@ -34,7 +30,7 @@ func (recipe NetHTTPRecipe) Instrument(node ast.Node) (result ast.Node, changed 
 	}), changed
 }
 
-func (recipe NetHTTPRecipe) instrumentMethodCall(call *ast.CallExpr) bool {
+func (recipe NetHTTP) instrumentMethodCall(call *ast.CallExpr) bool {
 	pkgName, fnName, ok := extractFunctionName(call)
 	if !ok {
 		return false
@@ -90,7 +86,7 @@ func (recipe NetHTTPRecipe) instrumentMethodCall(call *ast.CallExpr) bool {
 	}
 }
 
-func (recipe NetHTTPRecipe) instrumentHandleFunc(call *ast.CallExpr, handler ast.Expr) {
+func (recipe NetHTTP) instrumentHandleFunc(call *ast.CallExpr, handler ast.Expr) {
 	call.Args[1] = &ast.CallExpr{
 		Fun: &ast.SelectorExpr{
 			X:   ast.NewIdent(recipe.InstanaPkg),
@@ -104,7 +100,7 @@ func (recipe NetHTTPRecipe) instrumentHandleFunc(call *ast.CallExpr, handler ast
 	}
 }
 
-func (recipe NetHTTPRecipe) instrumentCompositeLit(c *astutil.Cursor, lit *ast.CompositeLit) bool {
+func (recipe NetHTTP) instrumentCompositeLit(c *astutil.Cursor, lit *ast.CompositeLit) bool {
 	pkg, name, ok := extractSelectorPackageAndName(lit.Type)
 	if !ok || pkg != recipe.TargetPkg {
 		return false
@@ -154,7 +150,7 @@ func (recipe NetHTTPRecipe) instrumentCompositeLit(c *astutil.Cursor, lit *ast.C
 	return false
 }
 
-func (recipe NetHTTPRecipe) instrumentTransport(orig ast.Expr) ast.Expr {
+func (recipe NetHTTP) instrumentTransport(orig ast.Expr) ast.Expr {
 	return &ast.CallExpr{
 		Fun: &ast.SelectorExpr{
 			X:   ast.NewIdent(recipe.InstanaPkg),

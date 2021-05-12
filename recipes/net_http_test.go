@@ -1,4 +1,4 @@
-package main
+package recipes_test
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"testing"
 
+	"github.com/instana/go-instana/recipes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +59,7 @@ func TestNetHTTPRecipe(t *testing.T) {
 			node, err := parser.ParseExpr(example.Code)
 			require.NoError(t, err)
 
-			instrumented, changed := NetHTTPRecipe{
+			instrumented, changed := recipes.NetHTTP{
 				InstanaPkg: "instana",
 				TargetPkg:  example.TargetPkg,
 				SensorVar:  "__instanaSensor",
@@ -86,7 +87,7 @@ func TestNetHTTPRecipe_Ignore(t *testing.T) {
 			node, err := parser.ParseExpr(example)
 			require.NoError(t, err)
 
-			result, changed := NetHTTPRecipe{
+			result, changed := recipes.NetHTTP{
 				InstanaPkg: "instana",
 				TargetPkg:  "http",
 				SensorVar:  "__instanaSensor",
@@ -118,7 +119,7 @@ func TestNetHTTPRecipe_InstrumentedCode(t *testing.T) {
 			node, err := parser.ParseExpr(example)
 			require.NoError(t, err)
 
-			instrumented, changed := NetHTTPRecipe{
+			instrumented, changed := recipes.NetHTTP{
 				InstanaPkg: "instana",
 				TargetPkg:  "http",
 				SensorVar:  "__instanaSensor",
