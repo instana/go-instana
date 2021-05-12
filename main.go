@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -20,8 +19,6 @@ import (
 )
 
 const goSensorPackage = "github.com/instana/go-sensor"
-
-var ErrNoSensorInstance = errors.New("no instana sensor instance found")
 
 func main() {
 	log.SetFlags(0)
