@@ -23,7 +23,7 @@ func main() {
 
 		defer resp.Body.Close()
 
-		w.WriteHeader("Content-Type", "text/plain")
+		w.Header().Set("Content-Type", "text/plain")
 		io.Copy(w, resp.Body)
 	})
 
