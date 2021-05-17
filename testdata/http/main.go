@@ -1,3 +1,6 @@
+// (c) Copyright IBM Corp. 2021
+// (c) Copyright Instana Inc. 2020
+
 package main
 
 import (
@@ -23,7 +26,7 @@ func main() {
 
 		defer resp.Body.Close()
 
-		w.WriteHeader("Content-Type", "text/plain")
+		w.Header().Set("Content-Type", "text/plain")
 		io.Copy(w, resp.Body)
 	})
 

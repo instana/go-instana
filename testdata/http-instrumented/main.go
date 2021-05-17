@@ -1,3 +1,6 @@
+// (c) Copyright IBM Corp. 2021
+// (c) Copyright Instana Inc. 2021
+
 package main
 
 import (
@@ -9,12 +12,12 @@ import (
 )
 
 var (
-	logger = log.New(os.Stdout)
+	logger = log.New(os.Stdout, "", log.LstdFlags)
 	sensor *instana.Sensor
 )
 
 func main() {
-	sensor = instana.NewSensor()
+	sensor = instana.NewSensor("http-server")
 
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
