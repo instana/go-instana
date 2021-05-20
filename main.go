@@ -41,6 +41,10 @@ func main() {
 		patterns = append(patterns, arg)
 	}
 
+	if len(patterns) == 0 {
+		patterns = append(patterns, "./...")
+	}
+
 	paths, err := collectSourcePaths(os.DirFS("./"), patterns)
 	if err != nil {
 		log.Fatalln(err)
