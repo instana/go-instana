@@ -4,6 +4,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"os/exec"
 )
@@ -22,6 +23,8 @@ func ParseToolchainCmd(args []string) *exec.Cmd {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	log.Println("tool: ", cmd)
 
 	return cmd
 }

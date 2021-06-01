@@ -51,7 +51,7 @@ func main() {
 	nextCmd := ParseToolchainCmd(args)
 
 	// only instrument before compilation or when the tool is executed manually
-	if nextCmd == nil || strings.HasSuffix(nextCmd.Path, "/compile") {
+	if nextCmd == nil || shouldInstrument(nextCmd) {
 		if err := instrumentCode(patterns); err != nil {
 			log.Fatalln("failed apply instrumentation changes:", err)
 		}
@@ -70,6 +70,19 @@ func main() {
 			log.Fatalln(err)
 		}
 	}
+}
+
+func shouldInstrument(cmd *exec.Cmd) bool {
+	switch filepath.Base(cmd.Path) {
+	case "compile", "compile.exe":
+		for _, arg := range cmd.Args {
+			if arg == "-o" {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func instrumentCode(patterns []string) error {
@@ -298,7 +311,7 @@ func AddInstanaSensor(pkgName, path string) (string, error) {
 	defer fd.Close()
 
 	if err := instanaGoTmpl.Execute(fd, instanaGoTmplArgs{
-		BinName:        strings.Join(os.Args, " "),
+		BinName:        os.Args[0],
 		Package:        pkgName,
 		InstanaPackage: goSensorPackage,
 		SensorName:     defaultSensorName,
