@@ -4,7 +4,7 @@
 package main
 
 import (
-	"flag"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"sort"
@@ -27,13 +28,13 @@ import (
 const goSensorPackage = "github.com/instana/go-sensor"
 
 func main() {
-	flag.Parse()
-
 	log.SetFlags(0)
 	log.SetPrefix("go-instana: ")
 
+	args := os.Args[1:]
+
 	var patterns []string
-	for _, arg := range flag.Args() {
+	for _, arg := range args {
 		if arg == "--" {
 			break
 		}
@@ -41,13 +42,59 @@ func main() {
 		patterns = append(patterns, arg)
 	}
 
+	// remove go-instana args
+	args = args[len(patterns):]
+	if len(args) > 0 && args[0] == "--" {
+		args = args[1:]
+	}
+
+	nextCmd := ParseToolchainCmd(args)
+
+	// only instrument before compilation or when the tool is executed manually
+	if nextCmd == nil || shouldInstrumentBeforeCmd(nextCmd) {
+		if err := instrumentCode(patterns); err != nil {
+			log.Fatalln("failed apply instrumentation changes:", err)
+		}
+	}
+
+	// If case there were any extra args provided in exec string, assume that go-instana has
+	// been invoked via -toolexec. In this case we need to use the rest of command line as
+	// to invoke the next tool in chain
+	if nextCmd != nil {
+		if err := nextCmd.Run(); err != nil {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				os.Exit(exitErr.ExitCode())
+			}
+
+			log.Fatalln(err)
+		}
+	}
+}
+
+// shouldInstrumentBeforeCmd returns whether the instrumentation should take place before
+// the toolexec command
+func shouldInstrumentBeforeCmd(cmd *exec.Cmd) bool {
+	switch filepath.Base(cmd.Path) {
+	case "compile", "compile.exe":
+		for _, arg := range cmd.Args {
+			if arg == "-o" {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func instrumentCode(patterns []string) error {
 	if len(patterns) == 0 {
 		patterns = append(patterns, "./...")
 	}
 
 	paths, err := collectSourcePaths(os.DirFS("./"), patterns)
 	if err != nil {
-		log.Fatalln(err)
+		return fmt.Errorf("failed to lookup source code directories: %w", err)
 	}
 
 	fset := token.NewFileSet()
@@ -58,7 +105,7 @@ func main() {
 			return !strings.HasSuffix(fInfo.Name(), "_test.go")
 		}, parser.ParseComments)
 		if err != nil {
-			log.Fatalf("failed to parse source files in %q: %s", path, err)
+			return fmt.Errorf("failed to parse source files in %q: %w", path, err)
 		}
 
 		for _, pkg := range pkgs {
@@ -76,7 +123,6 @@ func main() {
 				sensorName = newSensorName
 			}
 
-			fmt.Printf("%s.%s\n", pkg.Name, sensorName)
 			for fName, f := range pkg.Files {
 				log.Printf("processing %s...", fName)
 
@@ -87,6 +133,8 @@ func main() {
 			}
 		}
 	}
+
+	return nil
 }
 
 // collectSourcePaths returns a sorted list of directories under the root dir matching given set of patterns and
@@ -265,7 +313,7 @@ func AddInstanaSensor(pkgName, path string) (string, error) {
 	defer fd.Close()
 
 	if err := instanaGoTmpl.Execute(fd, instanaGoTmplArgs{
-		BinName:        strings.Join(os.Args, " "),
+		BinName:        os.Args[0],
 		Package:        pkgName,
 		InstanaPackage: goSensorPackage,
 		SensorName:     defaultSensorName,
