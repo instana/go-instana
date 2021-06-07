@@ -51,7 +51,7 @@ func main() {
 	nextCmd := ParseToolchainCmd(args)
 
 	// only instrument before compilation or when the tool is executed manually
-	if nextCmd == nil || shouldInstrument(nextCmd) {
+	if nextCmd == nil || shouldInstrumentBeforeCmd(nextCmd) {
 		if err := instrumentCode(patterns); err != nil {
 			log.Fatalln("failed apply instrumentation changes:", err)
 		}
@@ -72,7 +72,9 @@ func main() {
 	}
 }
 
-func shouldInstrument(cmd *exec.Cmd) bool {
+// shouldInstrumentBeforeCmd returns whether the instrumentation should take place before
+// the toolexec command
+func shouldInstrumentBeforeCmd(cmd *exec.Cmd) bool {
 	switch filepath.Base(cmd.Path) {
 	case "compile", "compile.exe":
 		for _, arg := range cmd.Args {
