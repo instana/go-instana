@@ -1,7 +1,7 @@
 // (c) Copyright IBM Corp. 2021
 // (c) Copyright Instana Inc. 2020
 
-package main
+package main_test
 
 import (
 	"go/ast"
@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	main "github.com/instana/go-instana"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +37,7 @@ func TestLookupInstanaSensor(t *testing.T) {
 			require.Len(t, pkgs, 1)
 
 			for _, pkg := range pkgs {
-				assert.Equal(t, example.Expected, LookupInstanaSensor(pkg))
+				assert.Equal(t, example.Expected, main.LookupInstanaSensor(pkg))
 			}
 		})
 	}
@@ -49,7 +50,7 @@ func TestAddInstanaSensor(t *testing.T) {
 
 	expectedFilePath := filepath.Join(fixturePath, "instana.go")
 
-	sensorName, err := AddInstanaSensor("main", fixturePath)
+	sensorName, err := main.AddInstanaSensor("main", fixturePath)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, sensorName)
@@ -57,12 +58,12 @@ func TestAddInstanaSensor(t *testing.T) {
 	code, err := parser.ParseFile(token.NewFileSet(), expectedFilePath, nil, parser.AllErrors)
 	require.NoError(t, err)
 
-	if assertImportsPackage(t, code.Imports, "instana", goSensorPackage) {
+	if assertImportsPackage(t, code.Imports, "instana", main.SensorPackage) {
 		t.Run("instana.go exists", func(t *testing.T) {
 			contentBefore, err := os.ReadFile(expectedFilePath)
 			require.NoError(t, err)
 
-			_, err = AddInstanaSensor("main", fixturePath)
+			_, err = main.AddInstanaSensor("main", fixturePath)
 			assert.Error(t, err)
 
 			contentAfter, err := os.ReadFile(expectedFilePath)
