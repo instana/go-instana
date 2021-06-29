@@ -5,11 +5,13 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
 	"go/token"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -23,20 +25,31 @@ import (
 
 const SensorPackage = "github.com/instana/go-sensor"
 
+var args struct {
+	Verbose bool
+}
+
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("go-instana: ")
 
+	flag.BoolVar(&args.Verbose, "x", false, "Print out instrumentation steps")
+	flag.Parse()
+
+	if !args.Verbose {
+		log.SetOutput(io.Discard)
+	}
+
 	// go-instana init
-	if len(os.Args) > 1 && os.Args[1] == "init" {
-		if err := InitCommand(os.Args[2:]); err != nil {
+	if flag.Arg(0) == "init" {
+		if err := InitCommand(flag.Args()[1:]); err != nil {
 			log.Fatalln("failed to add Instana sensor:", err)
 		}
 
 		return
 	}
 
-	nextCmd := ParseToolchainCmd(os.Args[1:])
+	nextCmd := ParseToolchainCmd(flag.Args())
 	if nextCmd == nil {
 		log.Fatalln(os.Args[0], "is expected to be executed as a part of Go build toolchain")
 	}
