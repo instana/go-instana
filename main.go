@@ -68,6 +68,10 @@ func main() {
 			}
 
 			p = strings.TrimLeft(p, "/")
+			if p == "" {
+				p = "."
+			}
+
 			if err := instrumentCode(p); err != nil {
 				log.Println(p, ": failed apply instrumentation changes:", err)
 			}
