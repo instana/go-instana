@@ -29,9 +29,24 @@ var args struct {
 	Verbose bool
 }
 
+func Usage() {
+	fmt.Fprintf(flag.CommandLine.Output(), `Usage: %s [flags] [command] [args]
+
+Commands:
+* init [pattern1 pattern2 ...] - add Instana sensor to all packages matching the set of patterns.
+                                 If no patterns are provided, add to all packages.
+
+Flags:
+`, os.Args[0])
+
+	flag.PrintDefaults()
+}
+
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("go-instana: ")
+
+	flag.Usage = Usage
 
 	flag.BoolVar(&args.Verbose, "x", false, "Print out instrumentation steps")
 	flag.Parse()
