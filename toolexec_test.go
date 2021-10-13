@@ -13,10 +13,10 @@ import (
 )
 
 func TestParseToolchainCmd(t *testing.T) {
-	binPath, err := exec.LookPath("ping")
+	binPath, err := exec.LookPath("true")
 	require.NoError(t, err)
 
-	args := []string{"ping", "-c", "5", "-a", "localhost"}
+	args := []string{"true", "-c", "5", "-a", "localhost"}
 
 	cmd := main.ParseToolchainCmd(args)
 	assert.Equal(t, binPath, cmd.Path)
