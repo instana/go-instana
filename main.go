@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/instana/go-instana/recipes"
@@ -51,7 +52,7 @@ func main() {
 	flag.BoolVar(&args.Verbose, "x", false, "Print out instrumentation steps")
 	flag.Parse()
 
-	if !args.Verbose {
+	if false {
 		log.SetOutput(io.Discard)
 	}
 
@@ -197,6 +198,21 @@ func Instrument(fset *token.FileSet, f *ast.File, sensorVar string) ast.Node {
 			node, changed := recipe.Instrument(result)
 			instrumented = instrumented || changed
 			result = node
+		case "google.golang.org/grpc":
+			log.Printf("go get github.com/instana/go-sensor/instrumentation/instagrpc error: %v", exec.Command("go", "get", "github.com/instana/go-sensor/instrumentation/instagrpc").Run())
+			addImport(fset, f, "github.com/instana/go-sensor/instrumentation/instagrpc")
+
+			log.Printf("instrumenting google.golang.org/grpc")
+			recipe := recipes.GRPC{
+				InstanaPkg: "instagrpc",
+				TargetPkg:  pkgName,
+				SensorVar:  sensorVar,
+			}
+
+			node, changed := recipe.Instrument(result)
+			instrumented = instrumented || changed
+			result = node
+
 		}
 	}
 
@@ -205,6 +221,26 @@ func Instrument(fset *token.FileSet, f *ast.File, sensorVar string) ast.Node {
 	}
 
 	return result
+}
+
+func addImport(fset *token.FileSet, f *ast.File, importPath string) {
+	// Add the imports
+	for i := 0; i < len(f.Decls); i++ {
+		d := f.Decls[i]
+		switch d.(type) {
+		case *ast.GenDecl:
+			dd := d.(*ast.GenDecl)
+
+			// IMPORT Declarations
+			if dd.Tok == token.IMPORT {
+				// Add the new import
+				iSpec := &ast.ImportSpec{Path: &ast.BasicLit{Value: strconv.Quote(importPath)}}
+				dd.Specs = append(dd.Specs, iSpec)
+			}
+		}
+	}
+	// Sort the imports
+	ast.SortImports(fset, f)
 }
 
 func buildImportsMap(f *ast.File) map[string]string {
