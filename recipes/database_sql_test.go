@@ -38,11 +38,8 @@ func TestDatabaseSQLRecipe(t *testing.T) {
 			node, err := parser.ParseExpr(example.Code)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.DatabaseSQL{
-				InstanaPkg: "instana",
-				TargetPkg:  example.TargetPkg,
-				SensorVar:  "__instanaSensor",
-			}.Instrument(node)
+			instrumented, changed := recipes.NewDatabaseSQL().
+				Instrument(nil, node, example.TargetPkg, "__instanaSensor")
 
 			assert.True(t, changed)
 
