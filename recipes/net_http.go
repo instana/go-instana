@@ -4,42 +4,57 @@
 package recipes
 
 import (
+	"github.com/instana/go-instana/registry"
 	"go/ast"
+	"go/token"
 	"log"
 
 	"golang.org/x/tools/go/ast/astutil"
 )
 
+func init() {
+	registry.Default.Register("net/http", NewNetHTTP())
+}
+
+func NewNetHTTP() *NetHTTP {
+	return &NetHTTP{
+		InstanaPkg: "instana",
+	}
+}
+
 // NetHTTP instruments net/http package with Instana
 type NetHTTP struct {
 	InstanaPkg string
-	TargetPkg  string
-	SensorVar  string
+}
+
+// ImportPath returns instrumentation import path
+func (recipe *NetHTTP) ImportPath() string {
+	return "github.com/instana/go-sensor"
 }
 
 // Instrument instruments net/http.HandleFunc and net/http.Handle calls as well as (http.Client).Transport
-func (recipe NetHTTP) Instrument(node ast.Node) (result ast.Node, changed bool) {
+func (recipe *NetHTTP) Instrument(fset *token.FileSet, node ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
 	return astutil.Apply(node, func(c *astutil.Cursor) bool {
 		return true
 	}, func(c *astutil.Cursor) bool {
 		switch node := c.Node().(type) {
 		case *ast.CallExpr:
-			changed = recipe.instrumentMethodCall(node) || changed
+			changed = recipe.instrumentMethodCall(node, targetPkg, sensorVar) || changed
 		case *ast.CompositeLit:
-			changed = recipe.instrumentCompositeLit(c, node) || changed
+			changed = recipe.instrumentCompositeLit(node, targetPkg, sensorVar) || changed
 		}
 
 		return true
 	}), changed
 }
 
-func (recipe NetHTTP) instrumentMethodCall(call *ast.CallExpr) bool {
+func (recipe *NetHTTP) instrumentMethodCall(call *ast.CallExpr, targetPkg, sensorVar string) bool {
 	pkgName, fnName, ok := extractFunctionName(call)
 	if !ok {
 		return false
 	}
 
-	if pkgName != recipe.TargetPkg {
+	if pkgName != targetPkg {
 		return false
 	}
 
@@ -47,7 +62,7 @@ func (recipe NetHTTP) instrumentMethodCall(call *ast.CallExpr) bool {
 	case "HandleFunc":
 		handler := call.Args[1]
 
-		// Double instrumentation check: handler is not an already insturmented http.HandlerFunc?
+		// Double instrumentation check: handler is not an already instrumented http.HandlerFunc?
 		if _, ok := assertFunctionName(handler, recipe.InstanaPkg, "TracingHandlerFunc"); ok {
 			log.Println("skipping an already instrumented call to net/http.HandleFunc() at pos", call.Pos())
 
@@ -56,14 +71,14 @@ func (recipe NetHTTP) instrumentMethodCall(call *ast.CallExpr) bool {
 
 		log.Println("instrumenting net/http.HandleFunc() call at pos", call.Pos())
 
-		recipe.instrumentHandleFunc(call, handler)
+		recipe.instrumentHandleFunc(call, handler, sensorVar)
 
 		return true
 	case "Handle":
 		handler := call.Args[1]
 
-		// Double instrumentation check: handler is not an already insturmented http.HandlerFunc?
-		if call, ok := assertFunctionName(handler, recipe.TargetPkg, "HandlerFunc"); ok {
+		// Double instrumentation check: handler is not an already instrumented http.HandlerFunc?
+		if call, ok := assertFunctionName(handler, targetPkg, "HandlerFunc"); ok {
 			if len(call.Args) > 0 {
 				if _, ok := assertFunctionName(call.Args[0], recipe.InstanaPkg, "TracingHandlerFunc"); ok {
 					log.Println("skipping an already instrumented call to net/http.Handle() at pos", call.Pos())
@@ -81,7 +96,7 @@ func (recipe NetHTTP) instrumentMethodCall(call *ast.CallExpr) bool {
 		recipe.instrumentHandleFunc(call, &ast.SelectorExpr{
 			X:   handler,
 			Sel: ast.NewIdent("ServeHTTP"),
-		})
+		}, sensorVar)
 
 		return true
 	default:
@@ -89,23 +104,23 @@ func (recipe NetHTTP) instrumentMethodCall(call *ast.CallExpr) bool {
 	}
 }
 
-func (recipe NetHTTP) instrumentHandleFunc(call *ast.CallExpr, handler ast.Expr) {
+func (recipe *NetHTTP) instrumentHandleFunc(call *ast.CallExpr, handler ast.Expr, sensorVar string) {
 	call.Args[1] = &ast.CallExpr{
 		Fun: &ast.SelectorExpr{
 			X:   ast.NewIdent(recipe.InstanaPkg),
 			Sel: ast.NewIdent("TracingHandlerFunc"),
 		},
 		Args: []ast.Expr{
-			ast.NewIdent(recipe.SensorVar),
+			ast.NewIdent(sensorVar),
 			call.Args[0], // pathTemplate
 			handler,      // handler
 		},
 	}
 }
 
-func (recipe NetHTTP) instrumentCompositeLit(c *astutil.Cursor, lit *ast.CompositeLit) bool {
+func (recipe *NetHTTP) instrumentCompositeLit(lit *ast.CompositeLit, targetPkg, sensorVar string) bool {
 	pkg, name, ok := extractSelectorPackageAndName(lit.Type)
-	if !ok || pkg != recipe.TargetPkg {
+	if !ok || pkg != targetPkg {
 		return false
 	}
 
@@ -134,7 +149,7 @@ func (recipe NetHTTP) instrumentCompositeLit(c *astutil.Cursor, lit *ast.Composi
 				}
 
 				log.Println("instrumenting (*http.Client).Transport at pos", kv.Value.Pos())
-				kv.Value = recipe.instrumentTransport(kv.Value)
+				kv.Value = recipe.instrumentTransport(kv.Value, sensorVar)
 
 				return true
 			}
@@ -144,7 +159,7 @@ func (recipe NetHTTP) instrumentCompositeLit(c *astutil.Cursor, lit *ast.Composi
 		log.Println("instrumenting *http.Client at pos", lit.Pos())
 		lit.Elts = append(lit.Elts, &ast.KeyValueExpr{
 			Key:   ast.NewIdent("Transport"),
-			Value: recipe.instrumentTransport(ast.NewIdent("nil")),
+			Value: recipe.instrumentTransport(ast.NewIdent("nil"), sensorVar),
 		})
 
 		return true
@@ -153,14 +168,14 @@ func (recipe NetHTTP) instrumentCompositeLit(c *astutil.Cursor, lit *ast.Composi
 	return false
 }
 
-func (recipe NetHTTP) instrumentTransport(orig ast.Expr) ast.Expr {
+func (recipe *NetHTTP) instrumentTransport(orig ast.Expr, sensorVar string) ast.Expr {
 	return &ast.CallExpr{
 		Fun: &ast.SelectorExpr{
 			X:   ast.NewIdent(recipe.InstanaPkg),
 			Sel: ast.NewIdent("RoundTripper"),
 		},
 		Args: []ast.Expr{
-			ast.NewIdent(recipe.SensorVar),
+			ast.NewIdent(sensorVar),
 			orig,
 		},
 	}

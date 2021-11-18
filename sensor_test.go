@@ -43,30 +43,40 @@ func TestLookupInstanaSensor(t *testing.T) {
 	}
 }
 
-func TestAddInstanaSensor(t *testing.T) {
+func TestWriteInstanaGoFile(t *testing.T) {
 	const fixturePath = "./testdata/http/"
 
 	defer resetDir(fixturePath)()
 
-	expectedFilePath := filepath.Join(fixturePath, "instana.go")
+	filePath := filepath.Join(fixturePath, "instana.go")
+	_, err := os.Stat(filePath)
+	assert.True(t, os.IsNotExist(err))
 
-	sensorName, err := main.AddInstanaSensor("main", fixturePath)
+	instanaGoFD, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0666)
+	assert.NoError(t, err)
+
+	notEmpty, err := main.WriteInstanaGoFile(instanaGoFD, "main", true, []string{})
 	require.NoError(t, err)
+	assert.True(t, notEmpty)
+	defer instanaGoFD.Close()
 
-	assert.NotEmpty(t, sensorName)
-
-	code, err := parser.ParseFile(token.NewFileSet(), expectedFilePath, nil, parser.AllErrors)
+	code, err := parser.ParseFile(token.NewFileSet(), filePath, nil, parser.AllErrors)
 	require.NoError(t, err)
 
 	if assertImportsPackage(t, code.Imports, "instana", main.SensorPackage) {
 		t.Run("instana.go exists", func(t *testing.T) {
-			contentBefore, err := os.ReadFile(expectedFilePath)
+			contentBefore, err := os.ReadFile(filePath)
 			require.NoError(t, err)
 
-			_, err = main.AddInstanaSensor("main", fixturePath)
-			assert.Error(t, err)
+			fd, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0666)
+			assert.NoError(t, err)
+			defer fd.Close()
 
-			contentAfter, err := os.ReadFile(expectedFilePath)
+			notEmpty, err = main.WriteInstanaGoFile(fd, "main", true, []string{})
+			assert.NoError(t, err)
+			assert.True(t, notEmpty)
+
+			contentAfter, err := os.ReadFile(filePath)
 			require.NoError(t, err)
 
 			assert.Equal(t, string(contentBefore), string(contentAfter))

@@ -62,11 +62,8 @@ func TestNetHTTPRecipe(t *testing.T) {
 			node, err := parser.ParseExpr(example.Code)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NetHTTP{
-				InstanaPkg: "instana",
-				TargetPkg:  example.TargetPkg,
-				SensorVar:  "__instanaSensor",
-			}.Instrument(node)
+			instrumented, changed := recipes.NewNetHTTP().
+				Instrument(nil, node, example.TargetPkg, "__instanaSensor")
 
 			assert.True(t, changed)
 
@@ -90,11 +87,8 @@ func TestNetHTTPRecipe_Ignore(t *testing.T) {
 			node, err := parser.ParseExpr(example)
 			require.NoError(t, err)
 
-			result, changed := recipes.NetHTTP{
-				InstanaPkg: "instana",
-				TargetPkg:  "http",
-				SensorVar:  "__instanaSensor",
-			}.Instrument(node)
+			result, changed := recipes.NewNetHTTP().
+				Instrument(nil, node, "http", "__instanaSensor")
 
 			require.False(t, changed)
 
@@ -122,11 +116,8 @@ func TestNetHTTPRecipe_InstrumentedCode(t *testing.T) {
 			node, err := parser.ParseExpr(example)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NetHTTP{
-				InstanaPkg: "instana",
-				TargetPkg:  "http",
-				SensorVar:  "__instanaSensor",
-			}.Instrument(node)
+			instrumented, changed := recipes.NewNetHTTP().
+				Instrument(nil, node, "http", "__instanaSensor")
 
 			assert.False(t, changed)
 

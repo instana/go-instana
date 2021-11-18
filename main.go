@@ -19,7 +19,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/instana/go-instana/recipes"
+	_ "github.com/instana/go-instana/recipes"
+	"github.com/instana/go-instana/registry"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -33,7 +34,7 @@ func Usage() {
 	fmt.Fprintf(flag.CommandLine.Output(), `Usage: %s [flags] [command] [args]
 
 Commands:
-* init [pattern1 pattern2 ...] - add Instana sensor to all packages matching the set of patterns.
+* add [pattern1 pattern2 ...] - add Instana sensor and instrumentation imports to all packages matching the set of patterns.
                                  If no patterns are provided, add to all packages.
 
 Flags:
@@ -55,9 +56,9 @@ func main() {
 		log.SetOutput(io.Discard)
 	}
 
-	// go-instana init
-	if flag.Arg(0) == "init" {
-		if err := InitCommand(flag.Args()[1:]); err != nil {
+	// go-instana add
+	if flag.Arg(0) == "add" {
+		if err := AddCommand(flag.Args()[1:]); err != nil {
 			log.Fatalln("failed to add Instana sensor:", err)
 		}
 
@@ -124,6 +125,25 @@ func forwardCmd(cmd *exec.Cmd) {
 	}
 }
 
+func instanaPackageImports(fset *token.FileSet, files map[string]*ast.File) map[string]string {
+	var result = make(map[string]string)
+
+	for fileName, file := range files {
+		if path.Base(fileName) != instanaGoFileName {
+			continue
+		}
+		for _, pkgGroup := range astutil.Imports(fset, file) {
+			for _, pkg := range pkgGroup {
+				if pkg.Path != nil {
+					result[strings.Trim(pkg.Path.Value, `"`)] = pkg.Name.String()
+				}
+			}
+		}
+	}
+
+	return result
+}
+
 func instrumentCode(path string) error {
 	fset := token.NewFileSet()
 	log.Println("processing", path, "...")
@@ -138,6 +158,12 @@ func instrumentCode(path string) error {
 	for _, pkg := range pkgs {
 		log.Printf("found package %s with %d file(s)", pkg.Name, len(pkg.Files))
 
+		importedInstrumentationPackages := instanaPackageImports(fset, pkg.Files)
+		if len(importedInstrumentationPackages) == 0 {
+			log.Printf("imported instrumentation packages not found in %s", pkg.Name)
+			continue
+		}
+
 		sensorName := LookupInstanaSensor(pkg)
 		if sensorName == "" {
 			log.Printf("%s: could not find Instana sensor, skipping", pkg.Name)
@@ -147,7 +173,7 @@ func instrumentCode(path string) error {
 		for fName, f := range pkg.Files {
 			log.Printf("processing %s...", fName)
 
-			if err := processFile(fset, sensorName, fName, f); err != nil {
+			if err := writeNodeToFile(fset, fName, Instrument(fset, f, sensorName, importedInstrumentationPackages)); err != nil {
 				log.Printf("failed to process %s: %s", fName, err)
 				continue
 			}
@@ -157,7 +183,7 @@ func instrumentCode(path string) error {
 	return nil
 }
 
-func processFile(fset *token.FileSet, sensorName, fName string, f *ast.File) error {
+func writeNodeToFile(fset *token.FileSet, fName string, node ast.Node) error {
 	tmpFile := fName + ".tmp"
 
 	fd, err := os.Create(tmpFile)
@@ -167,7 +193,7 @@ func processFile(fset *token.FileSet, sensorName, fName string, f *ast.File) err
 
 	defer os.Remove(tmpFile)
 
-	err = format.Node(fd, fset, Instrument(fset, f, sensorName))
+	err = format.Node(fd, fset, node)
 	fd.Close()
 
 	if err != nil {
@@ -178,33 +204,20 @@ func processFile(fset *token.FileSet, sensorName, fName string, f *ast.File) err
 }
 
 // Instrument processes an ast.File and applies instrumentation recipes to it
-func Instrument(fset *token.FileSet, f *ast.File, sensorVar string) ast.Node {
-	var (
-		instrumented bool
-		result       ast.Node = f
-	)
-
+func Instrument(fset *token.FileSet, f *ast.File, sensorVar string, availableInstrumentationPackages map[string]string) ast.Node {
 	for pkgName, targetPkg := range buildImportsMap(f) {
-		switch targetPkg {
-		case "net/http":
-			log.Printf("instrumenting net/http")
-			recipe := recipes.NetHTTP{
-				InstanaPkg: "instana",
-				TargetPkg:  pkgName,
-				SensorVar:  sensorVar,
-			}
-
-			node, changed := recipe.Instrument(result)
-			instrumented = instrumented || changed
-			result = node
+		if _, ok := availableInstrumentationPackages[registry.Default.InstrumentationImportPath(targetPkg)]; !ok {
+			continue
 		}
+
+		if recipe := registry.Default.InstrumentationRecipe(targetPkg); recipe != nil {
+			result, _ := recipe.Instrument(fset, f, pkgName, sensorVar)
+			return result
+		}
+
 	}
 
-	if instrumented && !astutil.UsesImport(f, SensorPackage) {
-		astutil.AddNamedImport(fset, result.(*ast.File), "instana", SensorPackage)
-	}
-
-	return result
+	return nil
 }
 
 func buildImportsMap(f *ast.File) map[string]string {

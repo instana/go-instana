@@ -27,17 +27,20 @@ The instrumentation process is done in two stages. Both steps are idempotent and
 CI build pipeline:
 
 1. **Initialization**, when `go-instana` ensures there is an Instana sensor present in all packages
-   of the project. To initialize run the following command from the root folder of your project
+   of the project. It also adds imports for all instrumentation packages that are necessary. To apply this step run the 
+   following command from the root folder of your project
 
    ```bash
-   $ go-instana init
+   $ go-instana add
    ```
 
    At this point your application is already instrumented and ready to send metrics to Instana.
    However, in order to collect trace information some minor modifications to your code are still
    required. These changes are applied during the instrumentation stage, which is the second step.
 
-2. **Instrumentation**, when `go-instana` searches for Instana sensor in the package global scope
+2. **Download added dependencies** `go-instana` will add necessary instrumentation packages to your code. Run `go mod tidy` to download and add them to your `go.mod`.
+
+3 **Instrumentation**, when `go-instana` searches for Instana sensor in the package global scope
    and applies instrumentation patches that add Instana code wrappers where necessary.
 
    This step is a part of `go build` command sequence and done by specifying `go-instana` as a
