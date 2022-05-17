@@ -44,7 +44,7 @@ func (r *Registry) InstrumentationImportPath(targetPkg string) string {
 	return ""
 }
 
-// GetRecipe returns recipe for the targetPkg if any registered.
+// InstrumentationRecipe returns recipe for the targetPkg if any registered.
 func (r *Registry) InstrumentationRecipe(targetPkg string) Recipe {
 	r.mu.Lock()
 	defer r.mu.Unlock()
