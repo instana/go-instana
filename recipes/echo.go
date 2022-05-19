@@ -80,27 +80,3 @@ func (recipe *Echo) instrumentMethodCall(call *ast.CallExpr, targetPkg, sensorVa
 
 	return true
 }
-
-// argumentsAlreadyInstrumented returns two parameters
-func (recipe *Echo) argumentsAlreadyInstrumented(args []ast.Expr, sensorVar string) bool {
-	sensorFound := false
-	for index := range args {
-		ast.Inspect(args[index], func(node ast.Node) bool {
-			if ident, ok := (node).(*ast.Ident); ok {
-				if ident.Name == sensorVar {
-					sensorFound = true
-
-					return false
-				}
-			}
-
-			return true
-		})
-
-		if sensorFound {
-			return true
-		}
-	}
-
-	return false
-}
