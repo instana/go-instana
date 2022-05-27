@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	_ "github.com/instana/go-instana/recipes"
@@ -25,6 +26,8 @@ import (
 )
 
 const SensorPackage = "github.com/instana/go-sensor"
+
+var verRegexp = regexp.MustCompile("v\\d+$")
 
 var args struct {
 	Verbose bool
@@ -231,6 +234,13 @@ func buildImportsMap(f *ast.File) map[string]string {
 		impPath := strings.Trim(imp.Path.Value, `"`)
 
 		localName := path.Base(impPath)
+		if verRegexp.MatchString(localName) {
+			imp := strings.Split(impPath, "/")
+			if len(imp) > 1 {
+				localName = imp[len(imp)-2]
+			}
+		}
+
 		if imp.Name != nil {
 			localName = imp.Name.Name
 		}

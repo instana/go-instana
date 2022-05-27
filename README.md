@@ -7,7 +7,7 @@ Go toolchain, applying instrumentation patches during the compile time.
 Installation
 ------------
 
-`go-instana` requires go1.16+ and can be installed to `$GOPATH/bin` with
+`go-instana` requires go1.18+ and can be installed to `$GOPATH/bin` with
 
 ```bash
 $ go install github.com/instana/go-instana
