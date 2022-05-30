@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	registry.Default.Register("github.com/aws/aws-lambda-go", NewLambda())
+	registry.Default.Register("github.com/aws/aws-lambda-go/lambda", NewLambda())
 }
 
 func NewLambda() *Lambda {
