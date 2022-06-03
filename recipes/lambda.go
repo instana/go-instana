@@ -110,7 +110,6 @@ func (recipe *Lambda) instrumentMethodCall(call *ast.CallExpr, targetPkg, sensor
 	}
 }
 
-// argumentsAlreadyInstrumented returns two parameters
 func (recipe *Lambda) argumentsAlreadyInstrumented(args []ast.Expr, sensorVar string) bool {
 	sensorFound := false
 	for index := range args {
