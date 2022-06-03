@@ -49,14 +49,15 @@ func (recipe *defaultRecipe) instrumentMethodCall(call *ast.CallExpr, targetPkg,
 	}
 
 	if _, ok := methods[fnName]; ok {
+		args := call.Args
 		*call = ast.CallExpr{
 			Fun: &ast.SelectorExpr{
 				X:   ast.NewIdent(instanaPkg),
 				Sel: ast.NewIdent(fnName),
 			},
-			Args: []ast.Expr{
+			Args: append([]ast.Expr{
 				ast.NewIdent(sensorVar),
-			},
+			}, args...),
 		}
 		return true
 	}
