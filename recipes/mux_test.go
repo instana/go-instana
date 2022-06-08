@@ -203,10 +203,10 @@ func main() {
 		},
 	}
 
-	assertInstrumentationMux(t, examples)
+	assertMuxInstrumentation(t, examples)
 }
 
-func assertInstrumentationMux(t *testing.T, examples map[string]struct {
+func assertMuxInstrumentation(t *testing.T, examples map[string]struct {
 	TargetPkg string
 	Code      string
 	Expected  string
