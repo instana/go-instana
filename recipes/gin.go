@@ -30,7 +30,7 @@ func (recipe *Gin) ImportPath() string {
 
 // Instrument applies recipe to the ast Node
 func (recipe *Gin) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
-	return recipe.defaultRecipe.instrument(fset, f, targetPkg, sensorVar, recipe.InstanaPkg, recipe.ImportPath(), map[string]struct{}{
+	return recipe.defaultRecipe.instrument(fset, f, targetPkg, sensorVar, recipe.InstanaPkg, recipe.ImportPath(), map[string]insertOption{
 		"New":     {},
 		"Default": {},
 	})
