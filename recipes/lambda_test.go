@@ -154,10 +154,10 @@ func main() {
 		},
 	}
 
-	assertInstrumentation(t, examples)
+	assertLambdaInstrumentation(t, examples)
 }
 
-func assertInstrumentation(t *testing.T, examples map[string]struct {
+func assertLambdaInstrumentation(t *testing.T, examples map[string]struct {
 	TargetPkg string
 	Code      string
 	Expected  string
