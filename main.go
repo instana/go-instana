@@ -210,25 +210,19 @@ func writeNodeToFile(fset *token.FileSet, fName string, node ast.Node) error {
 
 // Instrument processes an ast.File and applies instrumentation recipes to it
 func Instrument(fset *token.FileSet, f *ast.File, sensorVar string, availableInstrumentationPackages map[string]string) ast.Node {
-	fmt.Println()
-	fmt.Println()
-	fmt.Println()
-	fmt.Println()
-	ast.Print(fset, f)
 	for pkgName, targetPkg := range buildImportsMap(f) {
-		fmt.Println(">>>", pkgName, targetPkg)
 		if _, ok := availableInstrumentationPackages[registry.Default.InstrumentationImportPath(targetPkg)]; !ok {
 			continue
 		}
 
 		if recipe := registry.Default.InstrumentationRecipe(targetPkg); recipe != nil {
-			result, _ := recipe.Instrument(fset, f, pkgName, sensorVar)
-			return result
-		}
+			_, changed := recipe.Instrument(fset, f, pkgName, sensorVar)
 
+			log.Printf("Package %s changed: %v\n", pkgName, changed)
+		}
 	}
 
-	return nil
+	return f
 }
 
 func buildImportsMap(f *ast.File) map[string]string {
@@ -242,12 +236,12 @@ func buildImportsMap(f *ast.File) map[string]string {
 		impPath := strings.Trim(imp.Path.Value, `"`)
 
 		localName := path.Base(impPath)
-		// if verRegexp.MatchString(localName) {
-		// 	imp := strings.Split(impPath, "/")
-		// 	if len(imp) > 1 {
-		// 		localName = imp[len(imp)-2]
-		// 	}
-		// }
+		if verRegexp.MatchString(localName) {
+			imp := strings.Split(impPath, "/")
+			if len(imp) > 1 {
+				localName = imp[len(imp)-2]
+			}
+		}
 
 		if imp.Name != nil {
 			localName = imp.Name.Name
