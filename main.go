@@ -55,8 +55,6 @@ func main() {
 	flag.BoolVar(&args.Verbose, "x", false, "Print out instrumentation steps")
 	flag.Parse()
 
-	args.Verbose = true
-
 	if !args.Verbose {
 		log.SetOutput(io.Discard)
 	}
