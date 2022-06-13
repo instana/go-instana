@@ -5,13 +5,14 @@ package recipes
 import (
 	"go/ast"
 	"go/token"
+	"log"
 
 	"github.com/instana/go-instana/registry"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
 func init() {
-	registry.Default.Register("github.com/julienschmidt/httprouter", NewGin())
+	registry.Default.Register("github.com/julienschmidt/httprouter", NewHttpRouter())
 }
 
 // NewHttpRouter returns the HttpRouter recipe
@@ -33,7 +34,7 @@ func (recipe *HttpRouter) ImportPath() string {
 // Instrument applies the recipe to the ast Node
 func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
 
-	astutil.Apply(f, func(c *astutil.Cursor) bool {
+	result = astutil.Apply(f, func(c *astutil.Cursor) bool {
 		if c.Node() == nil {
 			return false
 		}
@@ -42,22 +43,41 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 	}, func(c *astutil.Cursor) bool {
 
 		switch node := c.Node().(type) {
+		// We look for `var something *httprouter.Router` and replace by `var something *instahttprouter.WrappedRouter`
 		case *ast.SelectorExpr:
 			nodeX, ok := node.X.(*ast.Ident)
 
-			// We look for `var something *httprouter.Router` and replace by `var something *instahttprouter.WrappedRouter`
-
 			if ok && nodeX.Name == "httprouter" && node.Sel.Name == "Router" {
-				nodeX.Name = "instahttprouter"
+				nodeX.Name = recipe.InstanaPkg
 				node.Sel.Name = "WrappedRouter"
+				changed = true
 			}
+
+		// Replacing httprouter.New() by instahttprouter.Wrap(httprouter.New(), __instanaSensor)
 		case *ast.CallExpr:
-			fn := node.Fun.(*ast.SelectorExpr)
-			fnX := fn.X.(*ast.Ident)
+			fn, ok := node.Fun.(*ast.SelectorExpr)
 
-			// Replacing httprouter.New() by instahttprouter.Wrap(httprouter.New(), __instanaSensor)
+			if !ok {
+				return true
+			}
 
-			if fnX.Name == "httprouter" {
+			fnX, ok := fn.X.(*ast.Ident)
+
+			if !ok {
+				return true
+			}
+
+			if fnX.Name == targetPkg {
+				// *node = ast.CallExpr{
+				// 	Fun: &ast.SelectorExpr{
+				// 		X:   ast.NewIdent(recipe.InstanaPkg),
+				// 		Sel: ast.NewIdent("LALALANOME_DA_FUNCAO"),
+				// 	},
+				// 	// Args: []ast.Expr{
+				// 	// 	handler,
+				// 	// 	ast.NewIdent(sensorVar),
+				// 	// },
+				// }
 				node.Args = append(node.Args, []ast.Expr{
 					&ast.BasicLit{
 						Kind:  token.STRING,
@@ -65,21 +85,27 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 					},
 					&ast.BasicLit{
 						Kind:  token.STRING,
-						Value: "__instanaSensor",
+						Value: sensorVar,
 					},
 				}...)
 				fnX.Name = "instahttprouter"
 				fn.Sel.Name = "Wrap"
+
+				changed = true
 			}
-			// fmt.Printf(">>> POST: type: %v, %v\n", fnX.Name, fn.Sel.Name)
-		default:
-			// fmt.Printf(">>> NOT CALL EXPR: %T : %v\n", c.Node(), c.Node())
 		}
 
 		return true
 	})
 
-	return recipe.defaultRecipe.instrument(fset, f, targetPkg, sensorVar, recipe.InstanaPkg, recipe.ImportPath(), map[string]struct{}{
-		"New": {},
-	})
+	if changed {
+		if val, ok := f.(*ast.File); ok {
+			log.Printf("AddNamedImport: %s %s", recipe.InstanaPkg, recipe.ImportPath())
+			astutil.AddNamedImport(fset, val, recipe.InstanaPkg, recipe.ImportPath())
+		}
+	}
+
+	// fmt.Fprint(os.Stdout, "will return: ", changed, "\n")
+
+	return result, changed
 }
