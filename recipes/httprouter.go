@@ -17,13 +17,13 @@ func init() {
 
 // NewHttpRouter returns the HttpRouter recipe
 func NewHttpRouter() *HttpRouter {
-	return &HttpRouter{InstanaPkg: "instahttprouter", defaultRecipe: defaultRecipe{}}
+	return &HttpRouter{InstanaPkg: "instahttprouter"}
 }
 
 // HttpRouter instruments the github.com/julienschmidt/httprouter package with Instana
 type HttpRouter struct {
-	InstanaPkg    string
-	defaultRecipe defaultRecipe
+	InstanaPkg string
+	// defaultRecipe defaultRecipe
 }
 
 // ImportPath returns the instrumentation import path
@@ -33,15 +33,20 @@ func (recipe *HttpRouter) ImportPath() string {
 
 // Instrument applies the recipe to the ast Node
 func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
-
+	// panic(3)
+	// ast.Print(fset, f)
+	// fmt.Fprint(os.Stdout, f)
+	// fmt.Printf("%T, %v", f, f)
+	// panic(1)
 	result = astutil.Apply(f, func(c *astutil.Cursor) bool {
-		if c.Node() == nil {
-			return false
-		}
+		// panic(111)
+		// if c.Node() == nil {
+		// 	return false
+		// }
 
 		return true
 	}, func(c *astutil.Cursor) bool {
-
+		// panic(222)
 		switch node := c.Node().(type) {
 		// We look for `var something *httprouter.Router` and replace by `var something *instahttprouter.WrappedRouter`
 		case *ast.SelectorExpr:
@@ -78,6 +83,7 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 				// 	// 	ast.NewIdent(sensorVar),
 				// 	// },
 				// }
+				// panic(666)
 				node.Args = append(node.Args, []ast.Expr{
 					&ast.BasicLit{
 						Kind:  token.STRING,

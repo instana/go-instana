@@ -209,10 +209,10 @@ func main() {
 		},
 	}
 
-	assertInstrumentation(t, examples, constructorsNames)
+	assertGinInstrumentation(t, examples, constructorsNames)
 }
 
-func assertInstrumentation(t *testing.T, examples map[string]struct {
+func assertGinInstrumentation(t *testing.T, examples map[string]struct {
 	TargetPkg string
 	Code      string
 	Expected  string
