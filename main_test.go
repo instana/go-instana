@@ -1,3 +1,5 @@
+// (c) Copyright IBM Corp. 2022
+
 package main
 
 import (
@@ -12,7 +14,6 @@ import (
 )
 
 func TestInstrument(t *testing.T) {
-
 	availableInstrumentationPkgs := map[string]string{
 		"github.com/instana/go-sensor":                                 "_",
 		"github.com/instana/go-sensor/instrumentation/instagin":        "_",
