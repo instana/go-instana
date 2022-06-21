@@ -18,9 +18,11 @@ func TestHttpRouterRecipe(t *testing.T) {
 		TargetPkg string
 		Code      string
 		Expected  string
+		Changed   bool
 	}{
 		"with type inference": {
 			TargetPkg: "httprouter",
+			Changed:   true,
 			Code: `package main
 
 import (
@@ -73,6 +75,7 @@ func main() {
 		},
 		"with var declaration": {
 			TargetPkg: "httprouter",
+			Changed:   true,
 			Code: `package main
 
 import (
@@ -132,6 +135,64 @@ func main() {
 }
 `,
 		},
+		"code already instrumented": {
+			TargetPkg: "httprouter",
+			Changed:   false,
+			Code: `package main
+
+import (
+	"fmt"
+	instahttprouter "github.com/instana/go-sensor/instrumentation/instahttprouter"
+	"github.com/julienschmidt/httprouter"
+	"log"
+	"net/http"
+)
+
+func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	fmt.Fprint(w, "Welcome!\n")
+}
+func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
+}
+func useRouterInstance(r instahttprouter.WrappedRouter) {
+	r.GET("/", Index)
+}
+func main() {
+	var router *instahttprouter.WrappedRouter
+	router = instahttprouter.Wrap(httprouter.New(), __instanaSensor)
+	router.GET("/", Index)
+	router.GET("/hello/:name", Hello)
+	log.Fatal(http.ListenAndServe(":8080", router))
+}
+`,
+			Expected: `package main
+
+import (
+	"fmt"
+	instahttprouter "github.com/instana/go-sensor/instrumentation/instahttprouter"
+	"github.com/julienschmidt/httprouter"
+	"log"
+	"net/http"
+)
+
+func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	fmt.Fprint(w, "Welcome!\n")
+}
+func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
+}
+func useRouterInstance(r instahttprouter.WrappedRouter) {
+	r.GET("/", Index)
+}
+func main() {
+	var router *instahttprouter.WrappedRouter
+	router = instahttprouter.Wrap(httprouter.New(), __instanaSensor)
+	router.GET("/", Index)
+	router.GET("/hello/:name", Hello)
+	log.Fatal(http.ListenAndServe(":8080", router))
+}
+`,
+		},
 	}
 
 	for name, example := range examples {
@@ -144,7 +205,7 @@ func main() {
 			recipe := NewHttpRouter()
 
 			instrumented, changed := recipe.Instrument(fset, node, example.TargetPkg, "__instanaSensor")
-			assert.True(t, changed)
+			assert.Equal(t, example.Changed, changed)
 
 			buf := bytes.NewBuffer(nil)
 			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))

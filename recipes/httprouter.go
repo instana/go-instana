@@ -64,6 +64,20 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 				return true
 			}
 
+			libPkg, libFunction, _ := extractFunctionName(node)
+
+			if libPkg != "httprouter" && libFunction != "New" {
+				return true
+			}
+
+			// If httprouter.New() is an argument of instahttprouter.Wrap(), it is already instrumented
+			if parent, ok := c.Parent().(*ast.CallExpr); ok {
+				instanaPkg, instanaFunction, found := extractFunctionName(parent)
+				if found && instanaPkg == "instahttprouter" && instanaFunction == "Wrap" {
+					return true
+				}
+			}
+
 			if fnX.Name == targetPkg {
 				node.Args = append(node.Args, []ast.Expr{
 					&ast.BasicLit{
