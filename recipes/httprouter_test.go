@@ -33,20 +33,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprint(w, "Welcome!\n")
-}
-
-func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
-}
-
 func main() {
 	router := httprouter.New()
-	router.GET("/", Index)
-	router.GET("/hello/:name", Hello)
-
-	log.Fatal(http.ListenAndServe(":8080", router))
 }
 `,
 			Expected: `package main
@@ -59,17 +47,8 @@ import (
 	"net/http"
 )
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprint(w, "Welcome!\n")
-}
-func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
-}
 func main() {
 	router := instahttprouter.Wrap(httprouter.New(), __instanaSensor)
-	router.GET("/", Index)
-	router.GET("/hello/:name", Hello)
-	log.Fatal(http.ListenAndServe(":8080", router))
 }
 `,
 		},
@@ -86,25 +65,13 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprint(w, "Welcome!\n")
-}
-
-func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
-}
-
 func useRouterInstance(r httprouter.Router) {
-	r.GET("/", Index)
+	fmt.Println(r)
 }
 
 func main() {
 	var router *httprouter.Router
 	router = httprouter.New()
-	router.GET("/", Index)
-	router.GET("/hello/:name", Hello)
-
-	log.Fatal(http.ListenAndServe(":8080", router))
 }
 `,
 			Expected: `package main
@@ -117,21 +84,12 @@ import (
 	"net/http"
 )
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprint(w, "Welcome!\n")
-}
-func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
-}
 func useRouterInstance(r instahttprouter.WrappedRouter) {
-	r.GET("/", Index)
+	fmt.Println(r)
 }
 func main() {
 	var router *instahttprouter.WrappedRouter
 	router = instahttprouter.Wrap(httprouter.New(), __instanaSensor)
-	router.GET("/", Index)
-	router.GET("/hello/:name", Hello)
-	log.Fatal(http.ListenAndServe(":8080", router))
 }
 `,
 		},
@@ -148,21 +106,12 @@ import (
 	"net/http"
 )
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprint(w, "Welcome!\n")
-}
-func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
-}
 func useRouterInstance(r instahttprouter.WrappedRouter) {
-	r.GET("/", Index)
+	fmt.Println(r)
 }
 func main() {
 	var router *instahttprouter.WrappedRouter
 	router = instahttprouter.Wrap(httprouter.New(), __instanaSensor)
-	router.GET("/", Index)
-	router.GET("/hello/:name", Hello)
-	log.Fatal(http.ListenAndServe(":8080", router))
 }
 `,
 			Expected: `package main
@@ -175,21 +124,50 @@ import (
 	"net/http"
 )
 
-func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fmt.Fprint(w, "Welcome!\n")
-}
-func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
-}
 func useRouterInstance(r instahttprouter.WrappedRouter) {
-	r.GET("/", Index)
+	fmt.Println(r)
 }
 func main() {
 	var router *instahttprouter.WrappedRouter
 	router = instahttprouter.Wrap(httprouter.New(), __instanaSensor)
-	router.GET("/", Index)
-	router.GET("/hello/:name", Hello)
-	log.Fatal(http.ListenAndServe(":8080", router))
+}
+`,
+		},
+		"instrument httprouter.New only": {
+			TargetPkg: "httprouter",
+			Changed:   true,
+			Code: `package main
+
+import (
+	"log"
+	"os"
+
+	"github.com/julienschmidt/httprouter"
+)
+
+var logger = log.New(os.Stderr, "", log.LstdFlags)
+
+func main() {
+	_ = httprouter.Router{}
+	httprouter.CleanPath("")
+	httprouter.New()
+}
+`,
+			Expected: `package main
+
+import (
+	instahttprouter "github.com/instana/go-sensor/instrumentation/instahttprouter"
+	"github.com/julienschmidt/httprouter"
+	"log"
+	"os"
+)
+
+var logger = log.New(os.Stderr, "", log.LstdFlags)
+
+func main() {
+	_ = instahttprouter.WrappedRouter{}
+	httprouter.CleanPath("")
+	instahttprouter.Wrap(httprouter.New(), __instanaSensor)
 }
 `,
 		},

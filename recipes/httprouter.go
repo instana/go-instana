@@ -52,18 +52,6 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 
 		// Replacing httprouter.New() by instahttprouter.Wrap(httprouter.New(), __instanaSensor)
 		case *ast.CallExpr:
-			fn, ok := node.Fun.(*ast.SelectorExpr)
-
-			if !ok {
-				return true
-			}
-
-			fnX, ok := fn.X.(*ast.Ident)
-
-			if !ok {
-				return true
-			}
-
 			libPkg, libFunction, _ := extractFunctionName(node)
 
 			if libPkg != "httprouter" && libFunction != "New" {
@@ -78,8 +66,20 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 				}
 			}
 
-			if fnX.Name == targetPkg {
-				node.Args = append(node.Args, []ast.Expr{
+			fn, ok := node.Fun.(*ast.SelectorExpr)
+
+			if !ok {
+				return true
+			}
+
+			fnX, ok := fn.X.(*ast.Ident)
+
+			if !ok {
+				return true
+			}
+
+			if fnX.Name == targetPkg && fn.Sel.Name == "New" {
+				node.Args = []ast.Expr{
 					&ast.BasicLit{
 						Kind:  token.STRING,
 						Value: "httprouter.New()",
@@ -88,7 +88,7 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 						Kind:  token.STRING,
 						Value: sensorVar,
 					},
-				}...)
+				}
 				fnX.Name = "instahttprouter"
 				fn.Sel.Name = "Wrap"
 
