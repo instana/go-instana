@@ -18,6 +18,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	_ "github.com/instana/go-instana/recipes"
@@ -214,13 +215,35 @@ func Instrument(fset *token.FileSet, f *ast.File, sensorVar string, availableIns
 		}
 
 		if recipe := registry.Default.InstrumentationRecipe(targetPkg); recipe != nil {
-			result, _ := recipe.Instrument(fset, f, pkgName, sensorVar)
-			return result
-		}
+			changed := recipe.Instrument(fset, f, pkgName, sensorVar)
 
+			log.Printf("Package %s changed: %v\n", pkgName, changed)
+		}
 	}
 
-	return nil
+	removeUnusedImports(fset, f)
+
+	return f
+}
+
+func removeUnusedImports(fset *token.FileSet, f *ast.File) {
+	for _, imports := range f.Imports {
+		unquotedImportPath, err := strconv.Unquote(imports.Path.Value)
+		if err != nil {
+			log.Printf("Unquote import error: %s\n", err.Error())
+			continue
+		}
+
+		if astutil.UsesImport(f, unquotedImportPath) {
+			continue
+		}
+
+		if imports.Name != nil && astutil.DeleteNamedImport(fset, f, imports.Name.Name, unquotedImportPath) {
+			log.Printf("delete named import %s %s\n", imports.Name.Name, unquotedImportPath)
+		} else if astutil.DeleteImport(fset, f, unquotedImportPath) {
+			log.Printf("delete import %s\n", unquotedImportPath)
+		}
+	}
 }
 
 func buildImportsMap(f *ast.File) map[string]string {
