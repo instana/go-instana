@@ -99,13 +99,13 @@ func assertGinInstrumentation(t *testing.T, examples map[string]struct {
 
 				require.NoError(t, err)
 
-				instrumented, changed := recipes.NewGin().
+				changed := recipes.NewGin().
 					Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 				assert.True(t, changed)
 
 				buf := bytes.NewBuffer(nil)
-				require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+				require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 				dumpExpectedCode(t, "gin", name, buf)
 
@@ -257,13 +257,13 @@ func main() {
 
 				require.NoError(t, err)
 
-				instrumented, changed := recipes.NewGin().
+				changed := recipes.NewGin().
 					Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 				assert.False(t, changed)
 
 				buf := bytes.NewBuffer(nil)
-				require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+				require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 				assert.Equal(t, strings.ReplaceAll(example.Expected, "^^CONSTRUCTOR_NAME^^", constructorName), buf.String())
 			})

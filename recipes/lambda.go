@@ -28,8 +28,8 @@ func (recipe *Lambda) ImportPath() string {
 	return "github.com/instana/go-sensor/instrumentation/instalambda"
 }
 
-func (recipe *Lambda) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
-	result = astutil.Apply(f,
+func (recipe *Lambda) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (changed bool) {
+	astutil.Apply(f,
 		func(c *astutil.Cursor) bool {
 			return true
 		},
@@ -50,7 +50,7 @@ func (recipe *Lambda) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sen
 		}
 	}
 
-	return result, changed
+	return changed
 }
 
 func (recipe *Lambda) instrumentMethodCall(call *ast.CallExpr, targetPkg, sensorVar string) bool {

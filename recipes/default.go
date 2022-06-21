@@ -20,8 +20,8 @@ type insertOption struct {
 }
 
 // instrument applies recipe to the ast Node
-func (recipe *defaultRecipe) instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar, instanaPkg, importPath string, methods map[string]insertOption) (result ast.Node, changed bool) {
-	result = astutil.Apply(f,
+func (recipe *defaultRecipe) instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar, instanaPkg, importPath string, methods map[string]insertOption) (changed bool) {
+	astutil.Apply(f,
 		func(c *astutil.Cursor) bool {
 			return true
 		},
@@ -42,7 +42,7 @@ func (recipe *defaultRecipe) instrument(fset *token.FileSet, f ast.Node, targetP
 		}
 	}
 
-	return result, changed
+	return changed
 }
 
 func (recipe *defaultRecipe) instrumentMethodCall(call *ast.CallExpr, targetPkg, sensorVar, instanaPkg string, methods map[string]insertOption) bool {
