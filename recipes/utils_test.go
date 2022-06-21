@@ -32,6 +32,7 @@ func dumpExpectedCode(t *testing.T, pkgName, name string, buf *bytes.Buffer) {
 //` + `go:generate go mod tidy
 //` + `go:generate go-instana add
 //` + `go:generate goimports -w .
+//` + `go:generate go build .
 
 package main`))
 		assert.NoError(t, err)

@@ -1,6 +1,11 @@
 LINTER ?= $(shell go env GOPATH)/bin/golangci-lint
 
-all: test legal
+all: test legal test-build
+
+test-build:
+	rm -rf testdata/tmp
+	GO_INSTANA_TEST_DUMP=1 make test
+	cd testdata && go generate ./...
 
 ifeq ($(RUN_LINTER),yes)
 test: $(LINTER)
