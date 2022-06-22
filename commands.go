@@ -4,12 +4,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/instana/go-instana/registry"
 	"go/ast"
 	"go/build"
 	"go/parser"
 	"go/token"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -32,13 +34,24 @@ func AddCommand(patterns []string) error {
 	for _, path := range paths {
 		log.Println("processing", path, "...")
 
+		filePath := filepath.Join(path, instanaGoFileName)
+
+		data, err := ioutil.ReadFile(filePath)
+		if err != nil {
+			log.Println("reading "+instanaGoFileName+" error:", err.Error())
+		}
+
+		if err == nil && IsGeneratedByGoInstana(bytes.NewBuffer(data)) {
+			if err := os.Remove(filePath); err != nil {
+				log.Println("remove "+instanaGoFileName+" error:", err.Error())
+			}
+		}
+
 		// find package located at `path`
 		pkg, err := findPackageInPath(path, token.NewFileSet())
 		if err != nil {
 			return fmt.Errorf("can find pkg in path %w", err)
 		}
-
-		filePath := filepath.Join(path, instanaGoFileName)
 
 		// check if files in the package have imports of the dependencies that can be instrumented
 		instrumentationPackagesToImport := applicableInstrumentationPackages(pkg)

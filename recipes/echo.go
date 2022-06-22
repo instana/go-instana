@@ -28,7 +28,7 @@ func (recipe *Echo) ImportPath() string {
 }
 
 // Instrument applies recipe to the ast Node
-func (recipe *Echo) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
+func (recipe *Echo) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) bool {
 	return recipe.defaultRecipe.instrument(fset, f, targetPkg, sensorVar, recipe.InstanaPkg, recipe.ImportPath(), map[string]insertOption{
 		"New": {},
 	})

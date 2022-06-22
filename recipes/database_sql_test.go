@@ -38,13 +38,13 @@ func TestDatabaseSQLRecipe(t *testing.T) {
 			node, err := parser.ParseExpr(example.Code)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NewDatabaseSQL().
+			changed := recipes.NewDatabaseSQL().
 				Instrument(nil, node, example.TargetPkg, "__instanaSensor")
 
 			assert.True(t, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example.Expected, buf.String())
 		})

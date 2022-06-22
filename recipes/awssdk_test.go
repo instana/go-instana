@@ -129,13 +129,15 @@ func main() {
 
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NewAWSSDK().
+			changed := recipes.NewAWSSDK().
 				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 			assert.True(t, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
+
+			dumpExpectedCode(t, "awssdk", name, buf)
 
 			assert.Equal(t, example.Expected, buf.String())
 		})
@@ -206,13 +208,13 @@ func main() {
 
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NewAWSSDK().
+			changed := recipes.NewAWSSDK().
 				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 			assert.False(t, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example.Code, buf.String())
 		})

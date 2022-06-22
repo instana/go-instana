@@ -25,161 +25,29 @@ func TestGinRecipe(t *testing.T) {
 		Code      string
 		Expected  string
 	}{
-		"new within a function engine": {
-			TargetPkg: "gin",
-			Code: `package main
-
-import "github.com/gin-gonic/gin"
-
-func foo() bool {
-	var a = gin.^^CONSTRUCTOR_NAME^^()
-	
-	return true
-}
-
-func main() {
-	foo()
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gin-gonic/gin"
-	instagin "github.com/instana/go-sensor/instrumentation/instagin"
-)
-
-func foo() bool {
-	var a = instagin.^^CONSTRUCTOR_NAME^^(__instanaSensor)
-	return true
-}
-func main() {
-	foo()
-}
-`,
-		},
 		"new engine": {
 			TargetPkg: "gin",
 			Code: `package main
 
 import "github.com/gin-gonic/gin"
+import "fmt"
 
 func main() {
 	var a = gin.^^CONSTRUCTOR_NAME^^()
+	fmt.Println(a)
 }
 `,
 			Expected: `package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	instagin "github.com/instana/go-sensor/instrumentation/instagin"
 )
 
 func main() {
 	var a = instagin.^^CONSTRUCTOR_NAME^^(__instanaSensor)
-}
-`,
-		},
-		"new engine within if statement": {
-			TargetPkg: "gin",
-			Code: `package main
-
-import "github.com/gin-gonic/gin"
-
-func main() {
-	if true {
-		var a = gin.^^CONSTRUCTOR_NAME^^()
-	}
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gin-gonic/gin"
-	instagin "github.com/instana/go-sensor/instrumentation/instagin"
-)
-
-func main() {
-	if true {
-		var a = instagin.^^CONSTRUCTOR_NAME^^(__instanaSensor)
-	}
-}
-`,
-		},
-		"new engine within for statement": {
-			TargetPkg: "gin",
-			Code: `package main
-
-import "github.com/gin-gonic/gin"
-
-func main() {
-	for {
-		var a = gin.^^CONSTRUCTOR_NAME^^()
-	}
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gin-gonic/gin"
-	instagin "github.com/instana/go-sensor/instrumentation/instagin"
-)
-
-func main() {
-	for {
-		var a = instagin.^^CONSTRUCTOR_NAME^^(__instanaSensor)
-	}
-}
-`,
-		},
-		"new engine within goroutine": {
-			TargetPkg: "gin",
-			Code: `package main
-
-import "github.com/gin-gonic/gin"
-
-func main() {
-	go func() {
-		var a = gin.^^CONSTRUCTOR_NAME^^()
-	}()
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gin-gonic/gin"
-	instagin "github.com/instana/go-sensor/instrumentation/instagin"
-)
-
-func main() {
-	go func() {
-		var a = instagin.^^CONSTRUCTOR_NAME^^(__instanaSensor)
-	}()
-}
-`,
-		},
-		"new engine within block": {
-			TargetPkg: "gin",
-			Code: `package main
-
-import "github.com/gin-gonic/gin"
-
-func main() {
-	{
-		var a = gin.^^CONSTRUCTOR_NAME^^()
-	}
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gin-gonic/gin"
-	instagin "github.com/instana/go-sensor/instrumentation/instagin"
-)
-
-func main() {
-	{
-		var a = instagin.^^CONSTRUCTOR_NAME^^(__instanaSensor)
-	}
+	fmt.Println(a)
 }
 `,
 		},
@@ -187,16 +55,20 @@ func main() {
 			TargetPkg: "gin",
 			Code: `package main
 
+import "fmt"
 import "github.com/gin-gonic/gin"
 
 func main() {
 	var a = gin.^^CONSTRUCTOR_NAME^^()
 	var b = gin.^^CONSTRUCTOR_NAME^^()
+	fmt.Println(a)
+	fmt.Println(b)
 }
 `,
 			Expected: `package main
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	instagin "github.com/instana/go-sensor/instrumentation/instagin"
 )
@@ -204,6 +76,8 @@ import (
 func main() {
 	var a = instagin.^^CONSTRUCTOR_NAME^^(__instanaSensor)
 	var b = instagin.^^CONSTRUCTOR_NAME^^(__instanaSensor)
+	fmt.Println(a)
+	fmt.Println(b)
 }
 `,
 		},
@@ -225,13 +99,15 @@ func assertGinInstrumentation(t *testing.T, examples map[string]struct {
 
 				require.NoError(t, err)
 
-				instrumented, changed := recipes.NewGin().
+				changed := recipes.NewGin().
 					Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 				assert.True(t, changed)
 
 				buf := bytes.NewBuffer(nil)
-				require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+				require.NoError(t, format.Node(buf, token.NewFileSet(), node))
+
+				dumpExpectedCode(t, "gin", name, buf)
 
 				assert.Equal(t, strings.ReplaceAll(example.Expected, "^^CONSTRUCTOR_NAME^^", constructorName), buf.String())
 			})
@@ -381,13 +257,13 @@ func main() {
 
 				require.NoError(t, err)
 
-				instrumented, changed := recipes.NewGin().
+				changed := recipes.NewGin().
 					Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 				assert.False(t, changed)
 
 				buf := bytes.NewBuffer(nil)
-				require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+				require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 				assert.Equal(t, strings.ReplaceAll(example.Expected, "^^CONSTRUCTOR_NAME^^", constructorName), buf.String())
 			})

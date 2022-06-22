@@ -53,13 +53,13 @@ func TestGRPCServerRecipe(t *testing.T) {
 			node, err := parser.ParseExpr(example.Code)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NewGRPC().
+			changed := recipes.NewGRPC().
 				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 			assert.True(t, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example.Expected, buf.String())
 		})
@@ -143,13 +143,13 @@ func main() {
 			node, err := parser.ParseFile(fset, "test", example.Code, parser.AllErrors)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NewGRPC().
+			changed := recipes.NewGRPC().
 				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 			assert.Equal(t, example.Changed, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example.Expected, buf.String())
 		})
@@ -194,13 +194,13 @@ func TestGRPCClientRecipe(t *testing.T) {
 			node, err := parser.ParseExpr(example.Code)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NewGRPC().
+			changed := recipes.NewGRPC().
 				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 			assert.True(t, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example.Expected, buf.String())
 		})
@@ -285,13 +285,13 @@ func main() {
 			node, err := parser.ParseFile(fset, "test", example.Code, parser.AllErrors)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NewGRPC().
+			changed := recipes.NewGRPC().
 				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 			assert.Equal(t, example.Changed, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example.Expected, buf.String())
 		})
