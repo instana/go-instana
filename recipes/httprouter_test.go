@@ -182,11 +182,11 @@ func main() {
 
 			recipe := NewHttpRouter()
 
-			instrumented, changed := recipe.Instrument(fset, node, example.TargetPkg, "__instanaSensor")
+			changed := recipe.Instrument(fset, node, example.TargetPkg, "__instanaSensor")
 			assert.Equal(t, example.Changed, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example.Expected, buf.String())
 		})

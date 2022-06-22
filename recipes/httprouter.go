@@ -31,8 +31,8 @@ func (recipe *HttpRouter) ImportPath() string {
 }
 
 // Instrument applies the recipe to the ast Node
-func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
-	result = astutil.Apply(f, func(c *astutil.Cursor) bool {
+func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (changed bool) {
+	astutil.Apply(f, func(c *astutil.Cursor) bool {
 		if c.Node() == nil {
 			return false
 		}
@@ -104,5 +104,5 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 		}
 	}
 
-	return result, changed
+	return changed
 }
