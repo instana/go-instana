@@ -54,7 +54,7 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 		case *ast.CallExpr:
 			libPkg, libFunction, _ := extractFunctionName(node)
 
-			if libPkg != "httprouter" && libFunction != "New" {
+			if libPkg != "httprouter" || libFunction != "New" {
 				return true
 			}
 
@@ -78,22 +78,20 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 				return true
 			}
 
-			if fnX.Name == targetPkg && fn.Sel.Name == "New" {
-				node.Args = []ast.Expr{
-					&ast.BasicLit{
-						Kind:  token.STRING,
-						Value: "httprouter.New()",
-					},
-					&ast.BasicLit{
-						Kind:  token.STRING,
-						Value: sensorVar,
-					},
-				}
-				fnX.Name = "instahttprouter"
-				fn.Sel.Name = "Wrap"
-
-				changed = true
+			node.Args = []ast.Expr{
+				&ast.BasicLit{
+					Kind:  token.STRING,
+					Value: "httprouter.New()",
+				},
+				&ast.BasicLit{
+					Kind:  token.STRING,
+					Value: sensorVar,
+				},
 			}
+			fnX.Name = "instahttprouter"
+			fn.Sel.Name = "Wrap"
+
+			changed = true
 		}
 
 		return true
