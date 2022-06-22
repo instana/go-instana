@@ -134,3 +134,65 @@ func applicableInstrumentationPackages(pkg *ast.Package) []string {
 
 	return uniqueImports
 }
+
+// instrumentCommand handles the `go-instana instrument` execution
+func instrumentCommand() {
+	cd, err := os.Getwd()
+	if err != nil {
+		log.Fatalln("getwd error:", err)
+	}
+
+	log.Println("current directory:", cd)
+	files, err := ioutil.ReadDir(cd)
+	if err != nil {
+		log.Fatalln("read dir error:", err)
+	}
+
+	isModuleRoot := false
+	for _, f := range files {
+		if f.Name() == "go.mod" {
+			isModuleRoot = true
+			break
+		}
+	}
+
+	if !isModuleRoot {
+		log.Fatalln(cd, " is not a module root")
+		return
+	}
+
+	uniqPaths := make(map[string]struct{})
+	err = filepath.Walk(".",
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if !info.IsDir() {
+				return nil
+			}
+
+			if path != "." && strings.HasPrefix(path, ".") {
+				return nil
+			}
+
+			if strings.HasPrefix(path, "vendor") {
+				return nil
+			}
+
+			uniqPaths[path] = struct{}{}
+
+			return nil
+		})
+
+	if err != nil {
+		log.Fatalln("can't collect paths error:", err)
+	}
+
+	for p := range uniqPaths {
+		log.Println("instrumenting", p)
+		if err := instrumentCode(p); err != nil {
+			log.Fatalf("instrumentation error: %s", err.Error())
+		}
+	}
+}

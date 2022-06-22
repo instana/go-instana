@@ -40,7 +40,7 @@ CI build pipeline:
 
 2. **Download added dependencies** `go-instana` will add necessary instrumentation packages to your code. Run `go mod tidy` to download and add them to your `go.mod`.
 
-3 **Instrumentation**, when `go-instana` searches for Instana sensor in the package global scope
+3. **Instrumentation**, when `go-instana` searches for Instana sensor in the package global scope
    and applies instrumentation patches that add Instana code wrappers where necessary.
 
    This step is a part of `go build` command sequence and done by specifying `go-instana` as a
@@ -58,3 +58,4 @@ CI build pipeline:
    $ export GOFLAGS='-toolexec="go-instana"'
    $ go build # will use go-instana to build your app
    ```
+   To apply instrumentation without building the binary, run `go-instana instrument` from the module's root directory.
