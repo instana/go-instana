@@ -60,12 +60,14 @@ func main() {
 		log.SetOutput(io.Discard)
 	}
 
-	// go-instana add
-	if flag.Arg(0) == "add" {
+	switch flag.Arg(0) {
+	case "add":
 		if err := AddCommand(flag.Args()[1:]); err != nil {
 			log.Fatalln("failed to add Instana sensor:", err)
 		}
-
+		return
+	case "instrument":
+		instrumentCommand()
 		return
 	}
 
