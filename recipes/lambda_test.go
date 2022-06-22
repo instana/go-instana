@@ -178,6 +178,8 @@ func assertLambdaInstrumentation(t *testing.T, examples map[string]struct {
 			buf := bytes.NewBuffer(nil)
 			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
 
+			dumpExpectedCode(t, "lambda", name, buf)
+
 			assert.Equal(t, example.Expected, buf.String())
 		})
 

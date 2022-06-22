@@ -137,6 +137,8 @@ func main() {
 			buf := bytes.NewBuffer(nil)
 			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
 
+			dumpExpectedCode(t, "awssdk", name, buf)
+
 			assert.Equal(t, example.Expected, buf.String())
 		})
 	}

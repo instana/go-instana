@@ -19,161 +19,29 @@ func TestMuxRecipeWith(t *testing.T) {
 		Code      string
 		Expected  string
 	}{
-		"new within a function router": {
-			TargetPkg: "mux",
-			Code: `package main
-
-import "github.com/gorilla/mux"
-
-func foo() bool {
-	var a = mux.NewRouter()
-	
-	return true
-}
-
-func main() {
-	foo()
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gorilla/mux"
-	instamux "github.com/instana/go-sensor/instrumentation/instamux"
-)
-
-func foo() bool {
-	var a = instamux.NewRouter(__instanaSensor)
-	return true
-}
-func main() {
-	foo()
-}
-`,
-		},
 		"new router": {
 			TargetPkg: "mux",
 			Code: `package main
 
+import "fmt"
 import "github.com/gorilla/mux"
 
 func main() {
 	var a = mux.NewRouter()
+	fmt.Println(a)
 }
 `,
 			Expected: `package main
 
 import (
+	"fmt"
 	"github.com/gorilla/mux"
 	instamux "github.com/instana/go-sensor/instrumentation/instamux"
 )
 
 func main() {
 	var a = instamux.NewRouter(__instanaSensor)
-}
-`,
-		},
-		"new router within if statement": {
-			TargetPkg: "mux",
-			Code: `package main
-
-import "github.com/gorilla/mux"
-
-func main() {
-	if true {
-		var a = mux.NewRouter()
-	}
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gorilla/mux"
-	instamux "github.com/instana/go-sensor/instrumentation/instamux"
-)
-
-func main() {
-	if true {
-		var a = instamux.NewRouter(__instanaSensor)
-	}
-}
-`,
-		},
-		"new router within for statement": {
-			TargetPkg: "mux",
-			Code: `package main
-
-import "github.com/gorilla/mux"
-
-func main() {
-	for {
-		var a = mux.NewRouter()
-	}
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gorilla/mux"
-	instamux "github.com/instana/go-sensor/instrumentation/instamux"
-)
-
-func main() {
-	for {
-		var a = instamux.NewRouter(__instanaSensor)
-	}
-}
-`,
-		},
-		"new router within goroutine": {
-			TargetPkg: "mux",
-			Code: `package main
-
-import "github.com/gorilla/mux"
-
-func main() {
-	go func() {
-		var a = mux.NewRouter()
-	}()
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gorilla/mux"
-	instamux "github.com/instana/go-sensor/instrumentation/instamux"
-)
-
-func main() {
-	go func() {
-		var a = instamux.NewRouter(__instanaSensor)
-	}()
-}
-`,
-		},
-		"new router within block": {
-			TargetPkg: "mux",
-			Code: `package main
-
-import "github.com/gorilla/mux"
-
-func main() {
-	{
-		var a = mux.NewRouter()
-	}
-}
-`,
-			Expected: `package main
-
-import (
-	"github.com/gorilla/mux"
-	instamux "github.com/instana/go-sensor/instrumentation/instamux"
-)
-
-func main() {
-	{
-		var a = instamux.NewRouter(__instanaSensor)
-	}
+	fmt.Println(a)
 }
 `,
 		},
@@ -181,16 +49,20 @@ func main() {
 			TargetPkg: "mux",
 			Code: `package main
 
+import "fmt"
 import "github.com/gorilla/mux"
 
 func main() {
 	var a = mux.NewRouter()
 	var b = mux.NewRouter()
+	fmt.Println(a)
+	fmt.Println(b)
 }
 `,
 			Expected: `package main
 
 import (
+	"fmt"
 	"github.com/gorilla/mux"
 	instamux "github.com/instana/go-sensor/instrumentation/instamux"
 )
@@ -198,6 +70,8 @@ import (
 func main() {
 	var a = instamux.NewRouter(__instanaSensor)
 	var b = instamux.NewRouter(__instanaSensor)
+	fmt.Println(a)
+	fmt.Println(b)
 }
 `,
 		},
@@ -225,6 +99,8 @@ func assertMuxInstrumentation(t *testing.T, examples map[string]struct {
 
 			buf := bytes.NewBuffer(nil)
 			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+
+			dumpExpectedCode(t, "mux", name, buf)
 
 			assert.Equal(t, example.Expected, buf.String())
 		})
