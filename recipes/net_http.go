@@ -33,8 +33,8 @@ func (recipe *NetHTTP) ImportPath() string {
 }
 
 // Instrument instruments net/http.HandleFunc and net/http.Handle calls as well as (http.Client).Transport
-func (recipe *NetHTTP) Instrument(fset *token.FileSet, node ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
-	return astutil.Apply(node, func(c *astutil.Cursor) bool {
+func (recipe *NetHTTP) Instrument(fset *token.FileSet, node ast.Node, targetPkg, sensorVar string) (changed bool) {
+	astutil.Apply(node, func(c *astutil.Cursor) bool {
 		return true
 	}, func(c *astutil.Cursor) bool {
 		switch node := c.Node().(type) {
@@ -45,7 +45,9 @@ func (recipe *NetHTTP) Instrument(fset *token.FileSet, node ast.Node, targetPkg,
 		}
 
 		return true
-	}), changed
+	})
+
+	return changed
 }
 
 func (recipe *NetHTTP) instrumentMethodCall(call *ast.CallExpr, targetPkg, sensorVar string) bool {

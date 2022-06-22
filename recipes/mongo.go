@@ -29,8 +29,8 @@ func (recipe *Mongo) ImportPath() string {
 }
 
 // Instrument applies recipe to the ast Node
-func (recipe *Mongo) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
-	result = astutil.Apply(f,
+func (recipe *Mongo) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (changed bool) {
+	astutil.Apply(f,
 		func(c *astutil.Cursor) bool {
 			return true
 		},
@@ -51,7 +51,7 @@ func (recipe *Mongo) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sens
 		}
 	}
 
-	return result, changed
+	return changed
 }
 
 func (recipe *Mongo) instrumentMethodCall(call *ast.CallExpr, targetPkg, sensorVar string) bool {

@@ -58,6 +58,6 @@ type Instrumentation interface {
 }
 
 type Recipe interface {
-	Instrument(fset *token.FileSet, f ast.Node, pkgName, sensorVar string) (result ast.Node, changed bool)
+	Instrument(fset *token.FileSet, f ast.Node, pkgName, sensorVar string) bool
 	Instrumentation
 }

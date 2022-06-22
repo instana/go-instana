@@ -33,8 +33,8 @@ func (recipe *DatabaseSQL) ImportPath() string {
 }
 
 // Instrument instruments sql.Open()
-func (recipe *DatabaseSQL) Instrument(fset *token.FileSet, node ast.Node, targetPkg, sensorVar string) (result ast.Node, changed bool) {
-	return astutil.Apply(node, func(c *astutil.Cursor) bool {
+func (recipe *DatabaseSQL) Instrument(fset *token.FileSet, node ast.Node, targetPkg, sensorVar string) (changed bool) {
+	astutil.Apply(node, func(c *astutil.Cursor) bool {
 		return true
 	}, func(c *astutil.Cursor) bool {
 		switch node := c.Node().(type) {
@@ -43,7 +43,9 @@ func (recipe *DatabaseSQL) Instrument(fset *token.FileSet, node ast.Node, target
 		}
 
 		return true
-	}), changed
+	})
+
+	return changed
 }
 
 func (recipe *DatabaseSQL) instrumentMethodCall(call *ast.CallExpr, targetPkg string) bool {

@@ -62,13 +62,13 @@ func TestNetHTTPRecipe(t *testing.T) {
 			node, err := parser.ParseExpr(example.Code)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NewNetHTTP().
+			changed := recipes.NewNetHTTP().
 				Instrument(nil, node, example.TargetPkg, "__instanaSensor")
 
 			assert.True(t, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example.Expected, buf.String())
 		})
@@ -87,13 +87,13 @@ func TestNetHTTPRecipe_Ignore(t *testing.T) {
 			node, err := parser.ParseExpr(example)
 			require.NoError(t, err)
 
-			result, changed := recipes.NewNetHTTP().
+			changed := recipes.NewNetHTTP().
 				Instrument(nil, node, "http", "__instanaSensor")
 
 			require.False(t, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), result))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example, buf.String())
 		})
@@ -116,13 +116,13 @@ func TestNetHTTPRecipe_InstrumentedCode(t *testing.T) {
 			node, err := parser.ParseExpr(example)
 			require.NoError(t, err)
 
-			instrumented, changed := recipes.NewNetHTTP().
+			changed := recipes.NewNetHTTP().
 				Instrument(nil, node, "http", "__instanaSensor")
 
 			assert.False(t, changed)
 
 			buf := bytes.NewBuffer(nil)
-			require.NoError(t, format.Node(buf, token.NewFileSet(), instrumented))
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
 
 			assert.Equal(t, example, buf.String())
 		})
