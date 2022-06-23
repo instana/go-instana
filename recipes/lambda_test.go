@@ -4,13 +4,14 @@ package recipes_test
 
 import (
 	"bytes"
-	"github.com/instana/go-instana/recipes"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"go/format"
 	"go/parser"
 	"go/token"
 	"testing"
+
+	"github.com/instana/go-instana/recipes"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLambda(t *testing.T) {
