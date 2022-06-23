@@ -4,7 +4,7 @@ jobs:
   build:
     working_directory: /go/src/github.com/instana/go-instana
     docker:
-      - image: circleci/golang:1.16
+      - image: cimg/golang:1.18
     steps:
       - checkout
       - restore_cache:
