@@ -2,18 +2,23 @@
 version: 2.1
 jobs:
   build:
-    working_directory: /go/src/github.com/instana/go-instana
     docker:
-      - image: circleci/golang:1.16
+      - image: cimg/go:1.18
     steps:
       - checkout
       - restore_cache:
           keys:
             - go-mod-v4-{{ checksum "go.sum" }}
       - run:
+          name: golangci-lint version
+          command: golangci-lint version
+      - run:
+          name: which golangci-lint
+          command: which golangci-lint
+      - run:
           name: Run tests
           environment:
-            RUN_LINTER: yes
+            RUN_LINTER: "yes"
           command: make test
       - run:
           name: Check copyright headers
@@ -21,4 +26,4 @@ jobs:
       - save_cache:
           key: go-mod-v4-{{ checksum "go.sum" }}
           paths:
-            - "/go/pkg/mod"
+            - "go/pkg/mod"

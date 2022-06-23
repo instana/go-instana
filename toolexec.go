@@ -47,14 +47,12 @@ func ParseToolchainCompileArgs(args []string) (toolchainCompileArgs, error) {
 			}
 
 			flags.Output = args[i+1]
-			i++
 		case "-p":
 			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
 				return flags, fmt.Errorf("compile tool -p flag missing mandatory value")
 			}
 
 			flags.Package = args[i+1]
-			i++
 		}
 	}
 

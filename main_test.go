@@ -58,7 +58,7 @@ func main() {
 
 	buf := bytes.NewBuffer(nil)
 
-	format.Node(buf, fset, f)
+	assert.NoError(t, format.Node(buf, fset, f))
 
 	assert.Equal(t, instrumentedCode, buf.String())
 }
