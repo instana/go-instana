@@ -33,11 +33,7 @@ func (recipe *HttpRouter) ImportPath() string {
 // Instrument applies the recipe to the ast Node
 func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (changed bool) {
 	astutil.Apply(f, func(c *astutil.Cursor) bool {
-		if c.Node() == nil {
-			return false
-		}
-
-		return true
+		return c.Node() != nil
 	}, func(c *astutil.Cursor) bool {
 		switch node := c.Node().(type) {
 		// We look for `var something *httprouter.Router` and replace by `var something *instahttprouter.WrappedRouter`

@@ -28,7 +28,7 @@ import (
 
 const SensorPackage = "github.com/instana/go-sensor"
 
-var verRegexp = regexp.MustCompile("v\\d+$")
+var verRegexp = regexp.MustCompile(`v\d+$`)
 
 var args struct {
 	Verbose bool

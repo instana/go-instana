@@ -1,4 +1,4 @@
-LINTER ?= $(shell go env GOPATH)/bin/golangci-lint
+LINTER ?= $(shell which golangci-lint)
 
 all: test legal test-build
 
@@ -19,7 +19,7 @@ endif
 
 $(LINTER):
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/a2bc9b7a99e3280805309d71036e8c2106853250/install.sh \
-	| sh -s -- -b $(basename $(GOPATH))/bin v1.23.8
+	| sh -s -- -b $(basename $(GOPATH))/bin v1.46.2
 
 # Make sure there is a copyright at the first line of each .go file
 legal:

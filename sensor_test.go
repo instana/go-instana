@@ -109,8 +109,7 @@ func resetDir(dir string) func() {
 
 func TestCanBeRemoved(t *testing.T) {
 	type args struct {
-		r              io.Reader
-		currentVersion string
+		r io.Reader
 	}
 	tests := []struct {
 		name string
