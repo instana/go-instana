@@ -22,21 +22,71 @@ func TestEchoClientRecipe(t *testing.T) {
 	}{
 		"new engine instrumentation": {
 			TargetPkg: "echo",
-			Code:      `echo.New()`,
-			Expected:  `instaecho.New(__instanaSensor)`,
-			Changed:   true,
+			Code: `package main
+
+import (
+	"fmt"
+
+	"github.com/labstack/echo/v4"
+)
+
+func main() {
+	engine := echo.New()
+	fmt.Println(engine)
+}
+`,
+			Expected: `package main
+
+import (
+	"fmt"
+	instaecho "github.com/instana/go-sensor/instrumentation/instaecho"
+	"github.com/labstack/echo/v4"
+)
+
+func main() {
+	engine := instaecho.New(__instanaSensor)
+	fmt.Println(engine)
+}
+`,
+			Changed: true,
 		},
 		"already instrumented": {
 			TargetPkg: "echo",
-			Code:      `instaecho.New(__instanaSensor)`,
-			Expected:  `instaecho.New(__instanaSensor)`,
-			Changed:   false,
+			Code: `package main
+
+import (
+	"fmt"
+	instaecho "github.com/instana/go-sensor/instrumentation/instaecho"
+	"github.com/labstack/echo/v4"
+)
+
+func main() {
+	engine := instaecho.New(__instanaSensor)
+	fmt.Println(engine)
+}
+`,
+			Expected: `package main
+
+import (
+	"fmt"
+	instaecho "github.com/instana/go-sensor/instrumentation/instaecho"
+	"github.com/labstack/echo/v4"
+)
+
+func main() {
+	engine := instaecho.New(__instanaSensor)
+	fmt.Println(engine)
+}
+`,
+			Changed: false,
 		},
 	}
 
 	for name, example := range examples {
 		t.Run(name, func(t *testing.T) {
-			node, err := parser.ParseExpr(example.Code)
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "test", example.Code, parser.AllErrors)
+
 			require.NoError(t, err)
 
 			changed := recipes.NewEcho().
@@ -46,6 +96,8 @@ func TestEchoClientRecipe(t *testing.T) {
 
 			buf := bytes.NewBuffer(nil)
 			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
+
+			dumpExpectedCode(t, "echo", name, buf)
 
 			assert.Equal(t, example.Expected, buf.String())
 		})
