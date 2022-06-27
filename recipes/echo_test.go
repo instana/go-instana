@@ -22,60 +22,81 @@ func TestEchoClientRecipe(t *testing.T) {
 	}{
 		"new engine instrumentation": {
 			TargetPkg: "echo",
-			Code: `package main
+			Code: `package echo
 
 import (
-	"fmt"
-
 	"github.com/labstack/echo/v4"
+	"log"
 )
 
-func main() {
+func RunEcho(addr string) {
 	engine := echo.New()
-	fmt.Println(engine)
+
+	engine.GET("/echoEndpoint", func(c echo.Context) error {
+		return nil
+	})
+
+	if err := engine.Start(addr); err != nil {
+		log.Fatalln(err)
+	}
 }
 `,
-			Expected: `package main
+			Expected: `package echo
 
 import (
-	"fmt"
 	instaecho "github.com/instana/go-sensor/instrumentation/instaecho"
 	"github.com/labstack/echo/v4"
+	"log"
 )
 
-func main() {
+func RunEcho(addr string) {
 	engine := instaecho.New(__instanaSensor)
-	fmt.Println(engine)
+	engine.GET("/echoEndpoint", func(c echo.Context) error {
+		return nil
+	})
+	if err := engine.Start(addr); err != nil {
+		log.Fatalln(err)
+	}
 }
 `,
 			Changed: true,
 		},
 		"already instrumented": {
 			TargetPkg: "echo",
-			Code: `package main
+			Code: `package echo
 
 import (
-	"fmt"
 	instaecho "github.com/instana/go-sensor/instrumentation/instaecho"
-	"github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v4"
+	"log"
 )
 
-func main() {
+func RunEcho(addr string) {
 	engine := instaecho.New(__instanaSensor)
-	fmt.Println(engine)
+	engine.GET("/echoEndpoint", func(c echo.Context) error {
+		return nil
+	})
+	if err := engine.Start(addr); err != nil {
+		log.Fatalln(err)
+	}
 }
 `,
-			Expected: `package main
+			Expected: `package echo
 
 import (
-	"fmt"
 	instaecho "github.com/instana/go-sensor/instrumentation/instaecho"
-	"github.com/labstack/echo/v4"
+	echo "github.com/labstack/echo/v4"
+	"log"
 )
 
-func main() {
+func RunEcho(addr string) {
 	engine := instaecho.New(__instanaSensor)
-	fmt.Println(engine)
+	engine.GET("/echoEndpoint", func(c echo.Context) error {
+		return nil
+	})
+	if err := engine.Start(addr); err != nil {
+		log.Fatalln(err)
+	}
 }
 `,
 			Changed: false,
