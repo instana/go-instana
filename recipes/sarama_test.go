@@ -5,7 +5,6 @@ import (
 	"github.com/instana/go-instana/recipes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go/ast"
 	"go/format"
 	"go/parser"
 	"go/token"
@@ -405,21 +404,24 @@ func assertSaramaInstrumentation(t *testing.T, examples map[string]struct {
 	}
 }
 
-func TestSarama_Debug(t *testing.T) {
+func TestSarama_InstrumentUsingContext(t *testing.T) {
 	examples := map[string]struct {
 		TargetPkg string
+		Code      string
 		Expected  string
 	}{
-		"NewAsyncProducer": {
+		"UseContextForInstrumentation": {
 			TargetPkg: "sarama",
-			Expected: `package sarama
+			Code: `package main
 
 import (
 	"context"
 	"github.com/Shopify/sarama"
 )
 
-func Produce(ctx Context, useless int) {
+func main() {
+}
+func Produce(ctx context.Context, useless int) {
 	brokers := []string{"localhost:9092"}
 	config := sarama.NewConfig()
 	config.Producer.Return.Successes = true
@@ -429,24 +431,45 @@ func Produce(ctx Context, useless int) {
 	producer.SendMessage(msg)
 }
 `,
+			Expected: `package main
+
+import (
+	"context"
+	"github.com/Shopify/sarama"
+	instasarama "github.com/instana/go-sensor/instrumentation/instasarama"
+)
+
+func main() {
+}
+func Produce(ctx context.Context, useless int) {
+	brokers := []string{"localhost:9092"}
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Version = sarama.V0_11_0_0
+	producer, _ := instasarama.NewSyncProducer(brokers, config, __instanaSensor)
+	msg := instasarama.ProducerMessageWithSpanFromContext(ctx, &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")})
+	producer.SendMessage(instasarama.ProducerMessageWithSpanFromContext(ctx, msg))
+}
+`,
 		},
 	}
 
 	for name, example := range examples {
 		t.Run(name, func(t *testing.T) {
 			fset := token.NewFileSet()
-			node, err := parser.ParseFile(fset, "test", example.Expected, parser.AllErrors)
+			node, err := parser.ParseFile(fset, "test", example.Code, parser.AllErrors)
 
 			require.NoError(t, err)
 
 			changed := recipes.NewSarama().
 				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
-			ast.Print(fset, node)
-			assert.False(t, changed)
+			assert.True(t, changed)
 
 			buf := bytes.NewBuffer(nil)
 			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
+
+			dumpExpectedCode(t, "sarama", name, buf)
 
 			assert.Equal(t, example.Expected, buf.String())
 		})

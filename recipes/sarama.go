@@ -11,6 +11,7 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 	"log"
 	"strconv"
+	"strings"
 )
 
 func init() {
@@ -35,7 +36,7 @@ func (recipe *Sarama) ImportPath() string {
 
 // Instrument applies recipe to the ast Node
 func (recipe *Sarama) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sensorVar string) (changed bool) {
-	changed = recipe.defaultRecipe.instrument(fset, f, targetPkg, sensorVar, recipe.InstanaPkg, recipe.ImportPath(), map[string]insertOption{
+	m := map[string]insertOption{
 		"NewAsyncProducer":           {sensorPosition: lastInsertPosition},
 		"NewAsyncProducerFromClient": {sensorPosition: lastInsertPosition},
 		"NewConsumer":                {sensorPosition: lastInsertPosition},
@@ -44,7 +45,8 @@ func (recipe *Sarama) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sen
 		"NewSyncProducerFromClient":  {sensorPosition: lastInsertPosition},
 		"NewConsumerGroup":           {sensorPosition: lastInsertPosition},
 		"NewConsumerGroupFromClient": {sensorPosition: lastInsertPosition},
-	})
+	}
+	changed = recipe.defaultRecipe.instrument(fset, f, targetPkg, sensorVar, recipe.InstanaPkg, recipe.ImportPath(), m)
 
 	funcDeclStack := &stack[ast.FuncDecl]{}
 	if v, ok := f.(*ast.File); ok {
@@ -66,7 +68,8 @@ func (recipe *Sarama) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sen
 			}
 
 			// check if this producer message creation
-			recipe.tryToInstrumentProducerMessageCreation(cursor, contextImportName, funcDeclStack)
+			changed = recipe.tryToInstrumentProducerMessageCreation(cursor, contextImportName, funcDeclStack) || changed
+			changed = recipe.tryToInstrumentSendingMessage(cursor, m, contextImportName, funcDeclStack) || changed
 
 			return true
 		}, func(cursor *astutil.Cursor) bool {
@@ -83,10 +86,86 @@ func (recipe *Sarama) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sen
 	}
 
 EXIT:
+
+	if changed {
+		if val, ok := f.(*ast.File); ok {
+			log.Printf("AddNamedImport: %s %s", recipe.InstanaPkg, recipe.ImportPath())
+			astutil.AddNamedImport(fset, val, recipe.InstanaPkg, recipe.ImportPath())
+		}
+	}
+
 	return changed
 }
 
-func (recipe *Sarama) tryToInstrumentProducerMessageCreation(cursor *astutil.Cursor, contextImportName string, funcDeclStack *stack) {
+func (recipe *Sarama) tryToInstrumentSendingMessage(cursor *astutil.Cursor, m map[string]insertOption, contextImportName string, funcDeclStack *stack[ast.FuncDecl]) bool {
+	if callExpr, ok := (cursor.Node()).(*ast.CallExpr); ok {
+		if recipe.isItCorrectSendMessageCall(callExpr, m) {
+			//todo: check already instrumented
+			if len(callExpr.Args) == 1 {
+				if ctxName, ok := recipe.tryGetContextVariableNameInTheScope(contextImportName, funcDeclStack.Top()); ok {
+					callExpr.Args[0] = &ast.CallExpr{
+						Fun: &ast.SelectorExpr{
+							X:   &ast.Ident{Name: "instasarama"},
+							Sel: &ast.Ident{Name: "ProducerMessageWithSpanFromContext"},
+						},
+						Args: []ast.Expr{
+							&ast.Ident{Name: ctxName},
+							callExpr.Args[0],
+						},
+					}
+
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func (recipe *Sarama) isItCorrectSendMessageCall(callExpr *ast.CallExpr, m map[string]insertOption) bool {
+	if selExpr, ok := (callExpr.Fun).(*ast.SelectorExpr); ok {
+		if selExpr.Sel.Name == "SendMessage" {
+			if ident, ok := selExpr.X.(*ast.Ident); ok {
+				t := recipe.getObjType(ident)
+				prefix := "instasarama."
+				if strings.HasPrefix(t, prefix) {
+					if _, ok := m[strings.TrimPrefix(t, prefix)]; ok {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// we are checking obj type, trying to use a `Obj.Decl` for this.
+func (recipe *Sarama) getObjType(node any) string {
+	switch t := node.(type) {
+	case *ast.Ident:
+		if t.Obj != nil && t.Obj.Decl != nil {
+			return recipe.getObjType(t.Obj.Decl)
+		} else {
+			return t.String()
+		}
+	case *ast.AssignStmt:
+		return recipe.getObjType(t.Rhs)
+	case []ast.Expr:
+		if len(t) == 1 {
+			return recipe.getObjType(t[0])
+		}
+	case *ast.CallExpr:
+		return recipe.getObjType(t.Fun)
+	case *ast.SelectorExpr:
+		return fmt.Sprintf("%s.%s", recipe.getObjType(t.X), recipe.getObjType(t.Sel))
+	}
+
+	return ""
+}
+
+func (recipe *Sarama) tryToInstrumentProducerMessageCreation(cursor *astutil.Cursor, contextImportName string, funcDeclStack *stack[ast.FuncDecl]) bool {
 	if unaryExp := recipe.isProducerMessageCreation(cursor); unaryExp != nil {
 		if ctxName, ok := recipe.tryGetContextVariableNameInTheScope(contextImportName, funcDeclStack.Top()); ok {
 			//todo: check if is instrumented
@@ -102,8 +181,12 @@ func (recipe *Sarama) tryToInstrumentProducerMessageCreation(cursor *astutil.Cur
 						unaryExp,
 					},
 				})
+
+			return true
 		}
 	}
+
+	return false
 }
 
 // checking for this `msg := &sarama.ProducerMessage{...`
