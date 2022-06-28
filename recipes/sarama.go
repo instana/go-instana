@@ -102,6 +102,14 @@ func (recipe *Sarama) tryToInstrumentSendingMessage(cursor *astutil.Cursor, m ma
 		if recipe.isItCorrectSendMessageCall(callExpr, m) {
 			//todo: check already instrumented
 			if len(callExpr.Args) == 1 {
+
+				// is already instrumented
+				if ce, ok := callExpr.Args[0].(*ast.CallExpr); ok {
+					if recipe.getObjType(ce) == "instasarama.ProducerMessageWithSpanFromContext" {
+						return false
+					}
+				}
+
 				if ctxName, ok := recipe.tryGetContextVariableNameInTheScope(contextImportName, funcDeclStack.Top()); ok {
 					callExpr.Args[0] = &ast.CallExpr{
 						Fun: &ast.SelectorExpr{
@@ -190,7 +198,10 @@ func (recipe *Sarama) getObjType(node any) string {
 func (recipe *Sarama) tryToInstrumentProducerMessageCreation(cursor *astutil.Cursor, contextImportName string, funcDeclStack *stack[ast.FuncDecl]) bool {
 	if unaryExp := recipe.isProducerMessageCreation(cursor); unaryExp != nil {
 		if ctxName, ok := recipe.tryGetContextVariableNameInTheScope(contextImportName, funcDeclStack.Top()); ok {
-			//todo: check if is instrumented
+			// is already instrumented
+			if recipe.getObjType(cursor.Parent()) == "instasarama.ProducerMessageWithSpanFromContext" {
+				return false
+			}
 
 			cursor.Replace(
 				&ast.CallExpr{
