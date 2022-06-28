@@ -11,6 +11,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"golang.org/x/tools/imports"
 	"io"
 	"log"
 	"os"
@@ -18,7 +19,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	_ "github.com/instana/go-instana/recipes"
@@ -201,12 +201,33 @@ func writeNodeToFile(fset *token.FileSet, fName string, node ast.Node) error {
 
 	err = format.Node(fd, fset, node)
 	fd.Close()
-
 	if err != nil {
 		return fmt.Errorf("failed to format instrumented code: %w", err)
 	}
 
+	if err := fixImports(tmpFile); err != nil {
+		return err
+	}
+
 	return os.Rename(tmpFile, fName)
+}
+
+func fixImports(tmpFile string) error {
+	fixedImports, err := imports.Process(tmpFile, nil, &imports.Options{AllErrors: true})
+	if err != nil {
+		return fmt.Errorf("fixing imports failed for %s : %w", tmpFile, err)
+	}
+
+	fd, err := os.Create(tmpFile)
+	if err != nil {
+		log.Fatalf("failed to open %s for writing: %s", tmpFile, err)
+	}
+
+	if _, err := fd.Write(fixedImports); err != nil {
+		return fmt.Errorf("failed to write code with fixed imports: %w", err)
+	}
+
+	return fd.Close()
 }
 
 // Instrument processes an ast.File and applies instrumentation recipes to it
@@ -223,29 +244,7 @@ func Instrument(fset *token.FileSet, f *ast.File, sensorVar string, availableIns
 		}
 	}
 
-	removeUnusedImports(fset, f)
-
 	return f
-}
-
-func removeUnusedImports(fset *token.FileSet, f *ast.File) {
-	for _, imports := range f.Imports {
-		unquotedImportPath, err := strconv.Unquote(imports.Path.Value)
-		if err != nil {
-			log.Printf("Unquote import error: %s\n", err.Error())
-			continue
-		}
-
-		if astutil.UsesImport(f, unquotedImportPath) {
-			continue
-		}
-
-		if imports.Name != nil && astutil.DeleteNamedImport(fset, f, imports.Name.Name, unquotedImportPath) {
-			log.Printf("delete named import %s %s\n", imports.Name.Name, unquotedImportPath)
-		} else if astutil.DeleteImport(fset, f, unquotedImportPath) {
-			log.Printf("delete import %s\n", unquotedImportPath)
-		}
-	}
 }
 
 func buildImportsMap(f *ast.File) map[string]string {

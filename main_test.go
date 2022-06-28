@@ -37,6 +37,7 @@ func main() {
 	instrumentedCode := `package main
 
 import (
+	"github.com/gin-gonic/gin"
 	instagin "github.com/instana/go-sensor/instrumentation/instagin"
 	instahttprouter "github.com/instana/go-sensor/instrumentation/instahttprouter"
 	"github.com/julienschmidt/httprouter"
