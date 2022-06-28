@@ -47,15 +47,27 @@ func (recipe *Sarama) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sen
 		"NewConsumerGroupFromClient": {sensorPosition: lastInsertPosition},
 	}
 	changed = recipe.defaultRecipe.instrument(fset, f, targetPkg, sensorVar, recipe.InstanaPkg, recipe.ImportPath(), m)
+	changed = recipe.instrumentUsingContext(fset, f, m) || changed
 
+	if changed {
+		if val, ok := f.(*ast.File); ok {
+			log.Printf("AddNamedImport: %s %s", recipe.InstanaPkg, recipe.ImportPath())
+			astutil.AddNamedImport(fset, val, recipe.InstanaPkg, recipe.ImportPath())
+		}
+	}
+
+	return changed
+}
+
+func (recipe *Sarama) instrumentUsingContext(fset *token.FileSet, f ast.Node, m map[string]insertOption) (changed bool) {
 	funcDeclStack := &stack[ast.FuncDecl]{}
+
 	if v, ok := f.(*ast.File); ok {
 		contextImportName, err := recipe.getContextImportName(fset, v)
 
 		if err != nil {
 			log.Println(err)
-			// use goto to simplify flow
-			goto EXIT
+			return false
 		}
 
 		astutil.Apply(f, func(cursor *astutil.Cursor) bool {
@@ -83,15 +95,6 @@ func (recipe *Sarama) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sen
 
 			return true
 		})
-	}
-
-EXIT:
-
-	if changed {
-		if val, ok := f.(*ast.File); ok {
-			log.Printf("AddNamedImport: %s %s", recipe.InstanaPkg, recipe.ImportPath())
-			astutil.AddNamedImport(fset, val, recipe.InstanaPkg, recipe.ImportPath())
-		}
 	}
 
 	return changed
