@@ -128,9 +128,27 @@ func (recipe *Sarama) isItCorrectSendMessageCall(callExpr *ast.CallExpr, m map[s
 		if selExpr.Sel.Name == "SendMessage" {
 			if ident, ok := selExpr.X.(*ast.Ident); ok {
 				t := recipe.getObjType(ident)
-				prefix := "instasarama."
-				if strings.HasPrefix(t, prefix) {
-					if _, ok := m[strings.TrimPrefix(t, prefix)]; ok {
+				instasaramaPrefix := "instasarama."
+				saramaPrefix := "sarama."
+
+				saramaTypesAndConstructors := map[string]struct{}{
+					"SyncProducer": {},
+					//"AsyncProducer":{}, doesn't have a SendMessage method
+					"NewAsyncProducer":           {},
+					"NewAsyncProducerFromClient": {},
+					"NewConsumer":                {},
+					"NewConsumerFromClient":      {},
+					"NewSyncProducer":            {},
+					"NewSyncProducerFromClient":  {},
+					"NewConsumerGroup":           {},
+					"NewConsumerGroupFromClient": {},
+				}
+				if strings.HasPrefix(t, instasaramaPrefix) {
+					if _, ok := saramaTypesAndConstructors[strings.TrimPrefix(t, instasaramaPrefix)]; ok {
+						return true
+					}
+				} else if strings.HasPrefix(t, saramaPrefix) {
+					if _, ok := saramaTypesAndConstructors[strings.TrimPrefix(t, saramaPrefix)]; ok {
 						return true
 					}
 				}
@@ -150,6 +168,10 @@ func (recipe *Sarama) getObjType(node any) string {
 		} else {
 			return t.String()
 		}
+	case *ast.Field:
+		return recipe.getObjType(t.Type)
+	case *ast.ValueSpec:
+		return recipe.getObjType(t.Type)
 	case *ast.AssignStmt:
 		return recipe.getObjType(t.Rhs)
 	case []ast.Expr:

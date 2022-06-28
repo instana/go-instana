@@ -452,6 +452,84 @@ func Produce(ctx context.Context, useless int) {
 }
 `,
 		},
+		"UseContextForInstrumentationProducerIsProvidedViaInterfaceSyncProducer": {
+			TargetPkg: "sarama",
+			Code: `package main
+
+import (
+	"context"
+
+	"github.com/Shopify/sarama"
+)
+
+func main() {
+	producer, _ := sarama.NewSyncProducer([]string{"localhost:9092"}, sarama.NewConfig())
+	Produce(context.Background(), producer)
+}
+func Produce(ctx context.Context, producer sarama.SyncProducer) {
+	msg := &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")}
+	producer.SendMessage(msg)
+}
+`,
+			Expected: `package main
+
+import (
+	"context"
+	"github.com/Shopify/sarama"
+	instasarama "github.com/instana/go-sensor/instrumentation/instasarama"
+)
+
+func main() {
+	producer, _ := instasarama.NewSyncProducer([]string{"localhost:9092"}, sarama.NewConfig(), __instanaSensor)
+	Produce(context.Background(), producer)
+}
+func Produce(ctx context.Context, producer sarama.SyncProducer) {
+	msg := instasarama.ProducerMessageWithSpanFromContext(ctx, &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")})
+	producer.SendMessage(instasarama.ProducerMessageWithSpanFromContext(ctx, msg))
+}
+`,
+		},
+		"UseContextForInstrumentationProducerInTheGlobalScope": {
+			TargetPkg: "sarama",
+			Code: `package main
+
+import (
+	"context"
+
+	"github.com/Shopify/sarama"
+)
+
+var producer sarama.SyncProducer
+
+func main() {
+	producer, _ = sarama.NewSyncProducer([]string{"localhost:9092"}, sarama.NewConfig())
+	Produce(context.Background())
+}
+func Produce(ctx context.Context) {
+	msg := &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")}
+	producer.SendMessage(msg)
+}
+`,
+			Expected: `package main
+
+import (
+	"context"
+	"github.com/Shopify/sarama"
+	instasarama "github.com/instana/go-sensor/instrumentation/instasarama"
+)
+
+var producer sarama.SyncProducer
+
+func main() {
+	producer, _ = instasarama.NewSyncProducer([]string{"localhost:9092"}, sarama.NewConfig(), __instanaSensor)
+	Produce(context.Background())
+}
+func Produce(ctx context.Context) {
+	msg := instasarama.ProducerMessageWithSpanFromContext(ctx, &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")})
+	producer.SendMessage(instasarama.ProducerMessageWithSpanFromContext(ctx, msg))
+}
+`,
+		},
 	}
 
 	for name, example := range examples {
@@ -465,6 +543,100 @@ func Produce(ctx context.Context, useless int) {
 				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 			assert.True(t, changed)
+
+			buf := bytes.NewBuffer(nil)
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
+
+			dumpExpectedCode(t, "sarama", name, buf)
+
+			assert.Equal(t, example.Expected, buf.String())
+		})
+	}
+}
+
+func TestSarama_InstrumentUsingContext_AlreadyInstrumented(t *testing.T) {
+	examples := map[string]struct {
+		TargetPkg string
+		Expected  string
+	}{
+		"AlreadyInstrumented 1": {
+			TargetPkg: "sarama",
+			Expected: `package main
+
+import (
+	"context"
+	"github.com/Shopify/sarama"
+	instasarama "github.com/instana/go-sensor/instrumentation/instasarama"
+)
+
+func main() {
+}
+func Produce(ctx context.Context, useless int) {
+	brokers := []string{"localhost:9092"}
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Version = sarama.V0_11_0_0
+	producer, _ := instasarama.NewSyncProducer(brokers, config, __instanaSensor)
+	msg := instasarama.ProducerMessageWithSpanFromContext(ctx, &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")})
+	producer.SendMessage(instasarama.ProducerMessageWithSpanFromContext(ctx, msg))
+}
+`,
+		},
+		"AlreadyInstrumented 2": {
+			TargetPkg: "sarama",
+			Expected: `package main
+
+import (
+	"context"
+	"github.com/Shopify/sarama"
+	instasarama "github.com/instana/go-sensor/instrumentation/instasarama"
+)
+
+func main() {
+	producer, _ := instasarama.NewSyncProducer([]string{"localhost:9092"}, sarama.NewConfig(), __instanaSensor)
+	Produce(context.Background(), producer)
+}
+func Produce(ctx context.Context, producer sarama.SyncProducer) {
+	msg := instasarama.ProducerMessageWithSpanFromContext(ctx, &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")})
+	producer.SendMessage(instasarama.ProducerMessageWithSpanFromContext(ctx, msg))
+}
+`,
+		},
+		"AlreadyInstrumented 3": {
+			TargetPkg: "sarama",
+			Expected: `package main
+
+import (
+	"context"
+	"github.com/Shopify/sarama"
+	instasarama "github.com/instana/go-sensor/instrumentation/instasarama"
+)
+
+var producer sarama.SyncProducer
+
+func main() {
+	producer, _ = instasarama.NewSyncProducer([]string{"localhost:9092"}, sarama.NewConfig(), __instanaSensor)
+	Produce(context.Background())
+}
+func Produce(ctx context.Context) {
+	msg := instasarama.ProducerMessageWithSpanFromContext(ctx, &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")})
+	producer.SendMessage(instasarama.ProducerMessageWithSpanFromContext(ctx, msg))
+}
+`,
+		},
+	}
+
+	for name, example := range examples {
+		t.Run(name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "test", example.Expected, parser.AllErrors)
+
+			require.NoError(t, err)
+
+			changed := recipes.NewSarama().
+				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
+
+			assert.False(t, changed)
 
 			buf := bytes.NewBuffer(nil)
 			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
