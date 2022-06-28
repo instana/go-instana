@@ -47,7 +47,7 @@ func (recipe *Sarama) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sen
 		"NewConsumerGroupFromClient": {sensorPosition: lastInsertPosition},
 	}
 	changed = recipe.defaultRecipe.instrument(fset, f, targetPkg, sensorVar, recipe.InstanaPkg, recipe.ImportPath(), m)
-	changed = recipe.instrumentUsingContext(fset, f, m) || changed
+	changed = recipe.instrumentMessagesAndSending(fset, f) || changed
 
 	if changed {
 		if val, ok := f.(*ast.File); ok {
@@ -59,29 +59,44 @@ func (recipe *Sarama) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sen
 	return changed
 }
 
-func (recipe *Sarama) instrumentUsingContext(fset *token.FileSet, f ast.Node, m map[string]insertOption) (changed bool) {
+// instrumentMessagesAndSending iterates over ast tree and track current function declaration. If the current function
+// has a "context.Context" type, it tries to instrument "sarama.ProducerMessage" type creation and/or "SendMessage" call
+// if that is done by "sarama.SyncProducer". Important: this auto instrumentation assumes that sarama library
+// ("github.com/Shopify/sarama") is imported as "sarama" and "context" is not imported via "_" or ".".
+func (recipe *Sarama) instrumentMessagesAndSending(fset *token.FileSet, f ast.Node) (changed bool) {
+	// stack to store current function declaration
 	funcDeclStack := &stack[ast.FuncDecl]{}
 
 	if v, ok := f.(*ast.File); ok {
+		// try to get context variable name
 		contextImportName, err := recipe.getContextImportName(fset, v)
 
+		// if no proper context import found
 		if err != nil {
 			log.Println(err)
 			return false
 		}
 
+		// traverse a tree
 		astutil.Apply(f, func(cursor *astutil.Cursor) bool {
+
+			// stop checking children
 			if cursor.Node() == nil {
 				return false
 			}
 
+			// if current node is a function declaration add it to the stack
 			if fd, ok := (cursor.Node()).(*ast.FuncDecl); ok {
 				funcDeclStack.Push(fd)
+
+				return true
 			}
 
-			// check if this producer message creation
+			// try to instrument "sarama.ProducerMessage" type creation
 			changed = recipe.tryToInstrumentProducerMessageCreation(cursor, contextImportName, funcDeclStack) || changed
-			changed = recipe.tryToInstrumentSendingMessage(cursor, m, contextImportName, funcDeclStack) || changed
+
+			// try to instrument "SendMessage" call
+			changed = recipe.tryToInstrumentSendingMessage(cursor, contextImportName, funcDeclStack) || changed
 
 			return true
 		}, func(cursor *astutil.Cursor) bool {
@@ -89,6 +104,7 @@ func (recipe *Sarama) instrumentUsingContext(fset *token.FileSet, f ast.Node, m 
 				return true
 			}
 
+			// remove function declaration from the stack
 			if _, ok := (cursor.Node()).(*ast.FuncDecl); ok {
 				funcDeclStack.Pop()
 			}
@@ -100,20 +116,20 @@ func (recipe *Sarama) instrumentUsingContext(fset *token.FileSet, f ast.Node, m 
 	return changed
 }
 
-func (recipe *Sarama) tryToInstrumentSendingMessage(cursor *astutil.Cursor, m map[string]insertOption, contextImportName string, funcDeclStack *stack[ast.FuncDecl]) bool {
+// tryToInstrumentSendingMessage instruments first and only argument of the "sarama.SyncProducer" "SendMessage" call
+func (recipe *Sarama) tryToInstrumentSendingMessage(cursor *astutil.Cursor, contextImportName string, funcDeclStack *stack[ast.FuncDecl]) bool {
 	if callExpr, ok := (cursor.Node()).(*ast.CallExpr); ok {
-		if recipe.isItCorrectSendMessageCall(callExpr, m) {
-			//todo: check already instrumented
+		if recipe.isItCorrectSendMessageCall(callExpr) {
 			if len(callExpr.Args) == 1 {
-
-				// is already instrumented
+				// check if already instrumented
 				if ce, ok := callExpr.Args[0].(*ast.CallExpr); ok {
 					if recipe.getObjType(ce) == "instasarama.ProducerMessageWithSpanFromContext" {
 						return false
 					}
 				}
 
-				if ctxName, ok := recipe.tryGetContextVariableNameInTheScope(contextImportName, funcDeclStack.Top()); ok {
+				// check the name of the context variable name in the function declaration
+				if ctxName, ok := recipe.tryGetContextVariableNameInTheFunctionDeclaration(contextImportName, funcDeclStack.Top()); ok {
 					callExpr.Args[0] = &ast.CallExpr{
 						Fun: &ast.SelectorExpr{
 							X:   &ast.Ident{Name: "instasarama"},
@@ -134,32 +150,33 @@ func (recipe *Sarama) tryToInstrumentSendingMessage(cursor *astutil.Cursor, m ma
 	return false
 }
 
-func (recipe *Sarama) isItCorrectSendMessageCall(callExpr *ast.CallExpr, m map[string]insertOption) bool {
+// isItCorrectSendMessageCall checks if current call is "SendMessage" and belongs to the kafka publishing.
+// It assumes that instrumentation and sarama library were imported with their default names.
+// It does not support async publisher.
+func (recipe *Sarama) isItCorrectSendMessageCall(callExpr *ast.CallExpr) bool {
 	if selExpr, ok := (callExpr.Fun).(*ast.SelectorExpr); ok {
 		if selExpr.Sel.Name == "SendMessage" {
 			if ident, ok := selExpr.X.(*ast.Ident); ok {
-				t := recipe.getObjType(ident)
 				instasaramaPrefix := "instasarama."
 				saramaPrefix := "sarama."
 
-				saramaTypesAndConstructors := map[string]struct{}{
-					"SyncProducer": {},
-					//"AsyncProducer":{}, doesn't have a SendMessage method
+				//"sarama.AsyncProducer" doesn't have a SendMessage method
+				saramaProducerTypesAndConstructors := map[string]struct{}{
+					"SyncProducer":               {},
 					"NewAsyncProducer":           {},
 					"NewAsyncProducerFromClient": {},
-					"NewConsumer":                {},
-					"NewConsumerFromClient":      {},
 					"NewSyncProducer":            {},
 					"NewSyncProducerFromClient":  {},
-					"NewConsumerGroup":           {},
-					"NewConsumerGroupFromClient": {},
 				}
+
+				// expected to have types like "instasarama.SyncProducer" or "sarama.SyncProducer" and so on.
+				t := recipe.getObjType(ident)
 				if strings.HasPrefix(t, instasaramaPrefix) {
-					if _, ok := saramaTypesAndConstructors[strings.TrimPrefix(t, instasaramaPrefix)]; ok {
+					if _, ok := saramaProducerTypesAndConstructors[strings.TrimPrefix(t, instasaramaPrefix)]; ok {
 						return true
 					}
 				} else if strings.HasPrefix(t, saramaPrefix) {
-					if _, ok := saramaTypesAndConstructors[strings.TrimPrefix(t, saramaPrefix)]; ok {
+					if _, ok := saramaProducerTypesAndConstructors[strings.TrimPrefix(t, saramaPrefix)]; ok {
 						return true
 					}
 				}
@@ -170,7 +187,8 @@ func (recipe *Sarama) isItCorrectSendMessageCall(callExpr *ast.CallExpr, m map[s
 	return false
 }
 
-// we are checking obj type, trying to use a `Obj.Decl` for this.
+// getObjType originally was created to extract select expression from the ident object declaration.
+// Use this method only if you understand what it does :).
 func (recipe *Sarama) getObjType(node any) string {
 	switch t := node.(type) {
 	case *ast.Ident:
@@ -198,14 +216,20 @@ func (recipe *Sarama) getObjType(node any) string {
 	return ""
 }
 
+// tryToInstrumentProducerMessageCreation wraps "&sarama.ProducerMessage{...}"
+// with "instasarama.ProducerMessageWithSpanFromContext"
 func (recipe *Sarama) tryToInstrumentProducerMessageCreation(cursor *astutil.Cursor, contextImportName string, funcDeclStack *stack[ast.FuncDecl]) bool {
-	if unaryExp := recipe.isProducerMessageCreation(cursor); unaryExp != nil {
-		if ctxName, ok := recipe.tryGetContextVariableNameInTheScope(contextImportName, funcDeclStack.Top()); ok {
-			// is already instrumented
+	// check if it is unary expression that creates "&sarama.ProducerMessage"
+	if unaryExp := recipe.isProducerMessageCreation(cursor.Node()); unaryExp != nil {
+
+		// search for the "context.Context" variable name in the current function declaration
+		if ctxName, ok := recipe.tryGetContextVariableNameInTheFunctionDeclaration(contextImportName, funcDeclStack.Top()); ok {
+			// check if is already instrumented
 			if recipe.getObjType(cursor.Parent()) == "instasarama.ProducerMessageWithSpanFromContext" {
 				return false
 			}
 
+			// wrap message creation
 			cursor.Replace(
 				&ast.CallExpr{
 					Fun: &ast.SelectorExpr{
@@ -225,10 +249,9 @@ func (recipe *Sarama) tryToInstrumentProducerMessageCreation(cursor *astutil.Cur
 	return false
 }
 
-// checking for this `msg := &sarama.ProducerMessage{...`
-// todo: currently assumes that imported as sarama
-func (recipe *Sarama) isProducerMessageCreation(cursor *astutil.Cursor) *ast.UnaryExpr {
-	if unaryExp, ok := (cursor.Node()).(*ast.UnaryExpr); ok {
+// isProducerMessageCreation checking if current node is unary expression like `msg := &sarama.ProducerMessage{...`
+func (recipe *Sarama) isProducerMessageCreation(node ast.Node) *ast.UnaryExpr {
+	if unaryExp, ok := node.(*ast.UnaryExpr); ok {
 		if compositeLit, ok := (unaryExp.X).(*ast.CompositeLit); ok {
 			if selExp, ok := (compositeLit.Type).(*ast.SelectorExpr); ok {
 				xName := ""
@@ -252,21 +275,31 @@ func (recipe *Sarama) isProducerMessageCreation(cursor *astutil.Cursor) *ast.Una
 	return nil
 }
 
+// getContextImportName extracts from the imports name of the "context.Context" import
 func (recipe *Sarama) getContextImportName(fset *token.FileSet, f *ast.File) (string, error) {
 	for _, importGroup := range astutil.Imports(fset, f) {
-		for _, imp := range importGroup {
-			if imp.Path == nil {
+		for _, importSpec := range importGroup {
+			if importSpec.Path == nil {
 				return "", errors.New("import path is <nil>")
 			}
 
-			p, err := strconv.Unquote(imp.Path.Value)
+			// imports paths in the look like ""context.Context""
+			rawPath, err := strconv.Unquote(importSpec.Path.Value)
 			if err != nil {
 				return "", fmt.Errorf("can not unquote import path:%w", err)
 			}
 
-			if p == "context" {
-				if imp.Name != nil {
-					return imp.Name.Name, nil
+			if rawPath == "context" {
+				if importSpec.Name != nil {
+
+					// check "special" import cases:
+					// _ "context.Context"
+					// . "context.Context"
+					if importSpec.Name.Name == "." || importSpec.Name.Name == "_" {
+						return "", errors.New("does not support context import as " + importSpec.Name.Name)
+					}
+
+					return importSpec.Name.Name, nil
 				}
 
 				return "context", nil
@@ -277,18 +310,12 @@ func (recipe *Sarama) getContextImportName(fset *token.FileSet, f *ast.File) (st
 	return "", errors.New("no context import found")
 }
 
-func (recipe *Sarama) tryGetContextVariableNameInTheScope(contextImportName string, fdcl *ast.FuncDecl) (string, bool) {
-	// if there is no function declaration
+// tryGetContextVariableNameInTheFunctionDeclaration check if current FuncDecl has "context.Context" type among
+// the parameters and returns its name.
+func (recipe *Sarama) tryGetContextVariableNameInTheFunctionDeclaration(contextImportName string, fdcl *ast.FuncDecl) (string, bool) {
+	// if there is no function declaration, returns
 	if fdcl == nil {
 		return "", false
-	}
-
-	// check "special" import cases
-	switch contextImportName {
-	case "_":
-		return "", false
-	case ".":
-		contextImportName = ""
 	}
 
 	// store all context variables from the declaration
@@ -301,38 +328,14 @@ func (recipe *Sarama) tryGetContextVariableNameInTheScope(contextImportName stri
 				continue
 			}
 
-			hasCorrectType := false
-			hasCorrectImport := false
-			if selExpr, ok := (field.Type).(*ast.SelectorExpr); ok {
-				//case when imported as "context" or as named import
-
-				//check type
-				hasCorrectType = selExpr.Sel.Name == "Context"
-
-				//check import name
-				if ident, ok := (selExpr.X).(*ast.Ident); ok {
-					hasCorrectImport = ident.Name == contextImportName
-				}
-
-				if hasCorrectImport && hasCorrectType {
-					ctxNames = append(ctxNames, field.Names[0].Name)
-				}
-
-			} else if ident, ok := (field.Type).(*ast.Ident); ok {
-				//case . "context"
-
-				//check type
-				hasCorrectType = ident.Name == "Context"
-
-				if hasCorrectType {
-					ctxNames = append(ctxNames, field.Names[0].Name)
-				}
+			if recipe.getObjType(field) == contextImportName+".Context" {
+				ctxNames = append(ctxNames, field.Names[0].Name)
 			}
 		}
 	}
 
 	if len(ctxNames) != 1 {
-		log.Println("expecting only one context in the declaration")
+		log.Println("expecting only one context in the function declaration")
 		return "", false
 	}
 

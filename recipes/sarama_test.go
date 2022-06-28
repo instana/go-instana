@@ -452,6 +452,48 @@ func Produce(ctx context.Context, useless int) {
 }
 `,
 		},
+		"UseContextForInstrumentationWithNamedContextImport": {
+			TargetPkg: "sarama",
+			Code: `package main
+
+import (
+	co "context"
+	"github.com/Shopify/sarama"
+)
+
+func main() {
+}
+func Produce(ctx co.Context, useless int) {
+	brokers := []string{"localhost:9092"}
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Version = sarama.V0_11_0_0
+	producer, _ := sarama.NewSyncProducer(brokers, config)
+	msg := &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")}
+	producer.SendMessage(msg)
+}
+`,
+			Expected: `package main
+
+import (
+	co "context"
+	"github.com/Shopify/sarama"
+	instasarama "github.com/instana/go-sensor/instrumentation/instasarama"
+)
+
+func main() {
+}
+func Produce(ctx co.Context, useless int) {
+	brokers := []string{"localhost:9092"}
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Version = sarama.V0_11_0_0
+	producer, _ := instasarama.NewSyncProducer(brokers, config, __instanaSensor)
+	msg := instasarama.ProducerMessageWithSpanFromContext(ctx, &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")})
+	producer.SendMessage(instasarama.ProducerMessageWithSpanFromContext(ctx, msg))
+}
+`,
+		},
 		"UseContextForInstrumentationProducerIsProvidedViaInterfaceSyncProducer": {
 			TargetPkg: "sarama",
 			Code: `package main
@@ -637,6 +679,122 @@ func Produce(ctx context.Context) {
 				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 			assert.False(t, changed)
+
+			buf := bytes.NewBuffer(nil)
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
+
+			dumpExpectedCode(t, "sarama", name, buf)
+
+			assert.Equal(t, example.Expected, buf.String())
+		})
+	}
+}
+
+func TestSarama_InstrumentUsingContextWithUnsupportedImport(t *testing.T) {
+	examples := map[string]struct {
+		TargetPkg string
+		Code      string
+		Expected  string
+	}{
+		"UseContextForInstrumentationWithUnsupportedContextImport_Blank": {
+			TargetPkg: "sarama",
+			Code: `package main
+
+import (
+	_ "context"
+	"context"
+	"github.com/Shopify/sarama"
+)
+
+func main() {
+}
+func Produce(ctx context.Context, useless int) {
+	brokers := []string{"localhost:9092"}
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Version = sarama.V0_11_0_0
+	producer, _ := sarama.NewSyncProducer(brokers, config)
+	msg := &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")}
+	producer.SendMessage(msg)
+}
+`,
+			Expected: `package main
+
+import (
+	"context"
+	_ "context"
+	"github.com/Shopify/sarama"
+	instasarama "github.com/instana/go-sensor/instrumentation/instasarama"
+)
+
+func main() {
+}
+func Produce(ctx context.Context, useless int) {
+	brokers := []string{"localhost:9092"}
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Version = sarama.V0_11_0_0
+	producer, _ := instasarama.NewSyncProducer(brokers, config, __instanaSensor)
+	msg := &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")}
+	producer.SendMessage(msg)
+}
+`,
+		},
+		"UseContextForInstrumentationWithUnsupportedContextImport_Dot": {
+			TargetPkg: "sarama",
+			Code: `package main
+
+import (
+	. "context"
+	"github.com/Shopify/sarama"
+)
+
+func main() {
+}
+func Produce(ctx Context, useless int) {
+	brokers := []string{"localhost:9092"}
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Version = sarama.V0_11_0_0
+	producer, _ := sarama.NewSyncProducer(brokers, config)
+	msg := &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")}
+	producer.SendMessage(msg)
+}
+`,
+			Expected: `package main
+
+import (
+	. "context"
+	"github.com/Shopify/sarama"
+	instasarama "github.com/instana/go-sensor/instrumentation/instasarama"
+)
+
+func main() {
+}
+func Produce(ctx Context, useless int) {
+	brokers := []string{"localhost:9092"}
+	config := sarama.NewConfig()
+	config.Producer.Return.Successes = true
+	config.Version = sarama.V0_11_0_0
+	producer, _ := instasarama.NewSyncProducer(brokers, config, __instanaSensor)
+	msg := &sarama.ProducerMessage{Topic: "test-topic-1", Offset: sarama.OffsetNewest, Value: sarama.StringEncoder("I am a message")}
+	producer.SendMessage(msg)
+}
+`,
+		},
+	}
+
+	for name, example := range examples {
+		t.Run(name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "test", example.Code, parser.AllErrors)
+
+			require.NoError(t, err)
+
+			changed := recipes.NewSarama().
+				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
+
+			assert.True(t, changed)
 
 			buf := bytes.NewBuffer(nil)
 			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
