@@ -33,3 +33,30 @@ func extractSelectorPackageAndName(typ ast.Expr) (string, string, bool) {
 
 	return "", "", false
 }
+
+type stack[E any] []*E
+
+func (s *stack[E]) Push(val *E) {
+	*s = append(*s, val)
+}
+
+func (s *stack[E]) Top() *E {
+	index := len(*s) - 1
+	if index >= 0 {
+		return (*s)[index]
+	}
+
+	return nil
+}
+
+func (s *stack[E]) Pop() *E {
+	index := len(*s) - 1
+	if index >= 0 {
+		res := (*s)[index]
+		*s = (*s)[:index]
+
+		return res
+	}
+
+	return nil
+}
