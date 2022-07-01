@@ -22,13 +22,15 @@ func TestEchoClientRecipe(t *testing.T) {
 	}{
 		"new engine instrumentation": {
 			TargetPkg: "echo",
-			Code: `package echo
+			Code: `package main
 
 import (
 	"github.com/labstack/echo/v4"
 	"log"
 )
 
+func main() {
+}
 func RunEcho(addr string) {
 	engine := echo.New()
 
@@ -41,7 +43,7 @@ func RunEcho(addr string) {
 	}
 }
 `,
-			Expected: `package echo
+			Expected: `package main
 
 import (
 	instaecho "github.com/instana/go-sensor/instrumentation/instaecho"
@@ -49,6 +51,8 @@ import (
 	"log"
 )
 
+func main() {
+}
 func RunEcho(addr string) {
 	engine := instaecho.New(__instanaSensor)
 	engine.GET("/echoEndpoint", func(c echo.Context) error {
@@ -63,7 +67,7 @@ func RunEcho(addr string) {
 		},
 		"already instrumented": {
 			TargetPkg: "echo",
-			Code: `package echo
+			Code: `package main
 
 import (
 	instaecho "github.com/instana/go-sensor/instrumentation/instaecho"
@@ -71,6 +75,8 @@ import (
 	"log"
 )
 
+func main() {
+}
 func RunEcho(addr string) {
 	engine := instaecho.New(__instanaSensor)
 	engine.GET("/echoEndpoint", func(c echo.Context) error {
@@ -81,7 +87,7 @@ func RunEcho(addr string) {
 	}
 }
 `,
-			Expected: `package echo
+			Expected: `package main
 
 import (
 	instaecho "github.com/instana/go-sensor/instrumentation/instaecho"
@@ -89,6 +95,8 @@ import (
 	"log"
 )
 
+func main() {
+}
 func RunEcho(addr string) {
 	engine := instaecho.New(__instanaSensor)
 	engine.GET("/echoEndpoint", func(c echo.Context) error {
