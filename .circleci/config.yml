@@ -16,13 +16,22 @@ jobs:
           name: which golangci-lint
           command: which golangci-lint
       - run:
+          name: Check copyright headers
+          command: make legal
+      - run:
           name: Run tests
           environment:
             RUN_LINTER: "yes"
           command: make test
       - run:
-          name: Check copyright headers
-          command: make legal
+          name: Install go-instana
+          command: go install
+      - run:
+          name: Install goimports
+          command: go install golang.org/x/tools/cmd/goimports@latest
+      - run:
+          name: Make test builds
+          command: make test-build
       - save_cache:
           key: go-mod-v4-{{ checksum "go.sum" }}
           paths:
