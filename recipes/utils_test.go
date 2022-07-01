@@ -66,24 +66,24 @@ func main() {
 
 	var p string
 
-	p, err = recipes.GetPackageImportName(fset, node, "log")
+	p, err = recipes.getPackageImportName(fset, node, "log")
 	assert.NoError(t, err)
 	assert.Equal(t, "log", p)
 
-	p, err = recipes.GetPackageImportName(fset, node, "github.com/labstack/echo/v4")
+	p, err = recipes.getPackageImportName(fset, node, "github.com/labstack/echo/v4")
 	assert.NoError(t, err)
 	assert.Equal(t, "echo", p)
 
-	p, err = recipes.GetPackageImportName(fset, node, "database/sql")
+	p, err = recipes.getPackageImportName(fset, node, "database/sql")
 	assert.NoError(t, err)
 	assert.Equal(t, "db", p)
 
-	_, err = recipes.GetPackageImportName(fset, node, "point")
+	_, err = recipes.getPackageImportName(fset, node, "point")
 	assert.Error(t, err)
 
-	_, err = recipes.GetPackageImportName(fset, node, "dash")
+	_, err = recipes.getPackageImportName(fset, node, "dash")
 	assert.Error(t, err)
 
-	_, err = recipes.GetPackageImportName(fset, node, "???")
+	_, err = recipes.getPackageImportName(fset, node, "???")
 	assert.Error(t, err)
 }

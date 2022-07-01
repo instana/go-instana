@@ -17,6 +17,19 @@ import (
 
 var verRegexp = regexp.MustCompile(`v\d+$`)
 
+// ExtractLocalImportName returns last part of the import path ignoring a version suffix
+func ExtractLocalImportName(impPath string) string {
+	localName := path.Base(impPath)
+	if verRegexp.MatchString(localName) {
+		imp := strings.Split(impPath, "/")
+		if len(imp) > 1 {
+			localName = imp[len(imp)-2]
+		}
+	}
+
+	return localName
+}
+
 func extractFunctionName(call *ast.CallExpr) (string, string, bool) {
 	switch fn := call.Fun.(type) {
 	case *ast.SelectorExpr:
@@ -73,8 +86,8 @@ func (s *stack[E]) Pop() *E {
 	return nil
 }
 
-// GetPackageImportName extracts from the imports name of the import
-func GetPackageImportName(fset *token.FileSet, f *ast.File, importPath string) (string, error) {
+// getPackageImportName extracts from the imports name of the import
+func getPackageImportName(fset *token.FileSet, f *ast.File, importPath string) (string, error) {
 	for _, importGroup := range astutil.Imports(fset, f) {
 		for _, importSpec := range importGroup {
 			if importSpec.Path == nil {
@@ -106,17 +119,4 @@ func GetPackageImportName(fset *token.FileSet, f *ast.File, importPath string) (
 	}
 
 	return "", errors.New("no import found for " + importPath)
-}
-
-// ExtractLocalImportName returns last part of the import path ignoring a version suffix
-func ExtractLocalImportName(impPath string) string {
-	localName := path.Base(impPath)
-	if verRegexp.MatchString(localName) {
-		imp := strings.Split(impPath, "/")
-		if len(imp) > 1 {
-			localName = imp[len(imp)-2]
-		}
-	}
-
-	return localName
 }
