@@ -3,14 +3,12 @@
 package recipes
 
 import (
-	"errors"
 	"fmt"
 	"github.com/instana/go-instana/registry"
 	"go/ast"
 	"go/token"
 	"golang.org/x/tools/go/ast/astutil"
 	"log"
-	"strconv"
 	"strings"
 )
 
@@ -69,7 +67,7 @@ func (recipe *Sarama) instrumentMessagesAndSending(fset *token.FileSet, f ast.No
 
 	if v, ok := f.(*ast.File); ok {
 		// try to get context variable name
-		contextImportName, err := recipe.getContextImportName(fset, v)
+		contextImportName, err := GetPackageImportName(fset, v, "context")
 
 		// if no proper context import found
 		if err != nil {
@@ -273,41 +271,6 @@ func (recipe *Sarama) isProducerMessageCreation(node ast.Node) *ast.UnaryExpr {
 	}
 
 	return nil
-}
-
-// getContextImportName extracts from the imports name of the "context.Context" import
-func (recipe *Sarama) getContextImportName(fset *token.FileSet, f *ast.File) (string, error) {
-	for _, importGroup := range astutil.Imports(fset, f) {
-		for _, importSpec := range importGroup {
-			if importSpec.Path == nil {
-				return "", errors.New("import path is <nil>")
-			}
-
-			// imports paths in the look like ""context.Context""
-			rawPath, err := strconv.Unquote(importSpec.Path.Value)
-			if err != nil {
-				return "", fmt.Errorf("can not unquote import path:%w", err)
-			}
-
-			if rawPath == "context" {
-				if importSpec.Name != nil {
-
-					// check "special" import cases:
-					// _ "context.Context"
-					// . "context.Context"
-					if importSpec.Name.Name == "." || importSpec.Name.Name == "_" {
-						return "", errors.New("does not support context import as " + importSpec.Name.Name)
-					}
-
-					return importSpec.Name.Name, nil
-				}
-
-				return "context", nil
-			}
-		}
-	}
-
-	return "", errors.New("no context import found")
 }
 
 // tryGetContextVariableNameInTheFunctionDeclaration check if current FuncDecl has "context.Context" type among
