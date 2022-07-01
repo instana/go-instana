@@ -24,6 +24,9 @@ jobs:
           name: Install go-instana
           command: go install
       - run:
+          name: Install goimports
+          command: go install golang.org/x/tools/cmd/goimports@latest
+      - run:
           name: Make test builds
           command: make test-build
       - run:
