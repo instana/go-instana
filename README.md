@@ -59,3 +59,7 @@ CI build pipeline:
    $ go build # will use go-instana to build your app
    ```
    To apply instrumentation without building the binary, run `go-instana instrument` from the module's root directory.
+
+To see which packages might be instrumented, use `go-instana list`. 
+
+To exclude packages from the instrumentation list use `e` flag. For example: `go-instana -e db -e sql list`.

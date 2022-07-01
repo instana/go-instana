@@ -15,6 +15,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -194,5 +195,15 @@ func instrumentCommand() {
 		if err := instrumentCode(p); err != nil {
 			log.Fatalf("instrumentation error: %s", err.Error())
 		}
+	}
+}
+
+// listCommand handles the `go-instana list` execution
+func listCommand() {
+	names := registry.Default.ListNames()
+	sort.Strings(names)
+
+	for _, name := range names {
+		fmt.Println(name)
 	}
 }
