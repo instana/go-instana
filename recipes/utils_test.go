@@ -2,7 +2,11 @@ package recipes_test
 
 import (
 	"bytes"
+	"github.com/instana/go-instana/recipes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,4 +43,47 @@ package main`))
 
 		assert.NoError(t, f2.Close())
 	}
+}
+
+func TestGetPackageImportName(t *testing.T) {
+	code := `package main
+
+import (
+	"log"
+	"github.com/labstack/echo/v4"
+	db "database/sql"
+	. "point"
+	_ "dash"
+)
+
+func main() {
+}
+`
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, "test", code, parser.AllErrors)
+
+	require.NoError(t, err)
+
+	var p string
+
+	p, err = recipes.GetPackageImportName(fset, node, "log")
+	assert.NoError(t, err)
+	assert.Equal(t, "log", p)
+
+	p, err = recipes.GetPackageImportName(fset, node, "github.com/labstack/echo/v4")
+	assert.NoError(t, err)
+	assert.Equal(t, "echo", p)
+
+	p, err = recipes.GetPackageImportName(fset, node, "database/sql")
+	assert.NoError(t, err)
+	assert.Equal(t, "db", p)
+
+	_, err = recipes.GetPackageImportName(fset, node, "point")
+	assert.Error(t, err)
+
+	_, err = recipes.GetPackageImportName(fset, node, "dash")
+	assert.Error(t, err)
+
+	_, err = recipes.GetPackageImportName(fset, node, "???")
+	assert.Error(t, err)
 }
