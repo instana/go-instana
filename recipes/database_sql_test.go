@@ -23,28 +23,96 @@ func TestDatabaseSQLRecipe(t *testing.T) {
 	}{
 		"sql.Open": {
 			TargetPkg: "sql",
-			Code:      `sql.Open("sqlite", "sqlite:///var/data/db.sqlite")`,
-			Expected:  `instana.SQLOpen("sqlite", "sqlite:///var/data/db.sqlite")`,
-		},
-		"custom import": {
-			TargetPkg: "db",
-			Code:      `db.Open("sqlite", "sqlite:///var/data/db.sqlite")`,
-			Expected:  `instana.SQLOpen("sqlite", "sqlite:///var/data/db.sqlite")`,
-		},
-	}
+			Code: `package main
+
+import (
+	"database/sql"
+	"fmt"
+	_ "github.com/go-sql-driver/mysql"
+)
+
+func main() {
+	db, err := sql.Open("mysql", "root:example@tcp(127.0.0.1:3306)/hello")
+	fmt.Println(db, err)
+}
+`,
+			Expected: `package main
+
+import (
+	"database/sql"
+	"fmt"
+	_ "github.com/go-sql-driver/mysql"
+	instana "github.com/instana/go-sensor"
+)
+
+func main() {
+	db, err := instana.SQLInstrumentAndOpen(__instanaSensor, "mysql", "root:example@tcp(127.0.0.1:3306)/hello")
+	fmt.Println(db, err)
+}
+`,
+		}}
 
 	for name, example := range examples {
 		t.Run(name, func(t *testing.T) {
-			node, err := parser.ParseExpr(example.Code)
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "test", example.Code, parser.AllErrors)
+
 			require.NoError(t, err)
 
 			changed := recipes.NewDatabaseSQL().
-				Instrument(nil, node, example.TargetPkg, "__instanaSensor")
+				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
 
 			assert.True(t, changed)
 
 			buf := bytes.NewBuffer(nil)
 			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
+
+			dumpExpectedCode(t, "databasesql", name, buf)
+
+			assert.Equal(t, example.Expected, buf.String())
+		})
+	}
+}
+
+func TestDatabaseSQLRecipe_AlreadyInstrumented(t *testing.T) {
+	examples := map[string]struct {
+		TargetPkg string
+		Expected  string
+	}{
+		"sql.Open already instrumented": {
+			TargetPkg: "sql",
+			Expected: `package main
+
+import (
+	"database/sql"
+	"fmt"
+	_ "github.com/go-sql-driver/mysql"
+	instana "github.com/instana/go-sensor"
+)
+
+func main() {
+	db, err := instana.SQLInstrumentAndOpen(__instanaSensor, "mysql", "root:example@tcp(127.0.0.1:3306)/hello")
+	fmt.Println(db, err)
+}
+`,
+		}}
+
+	for name, example := range examples {
+		t.Run(name, func(t *testing.T) {
+			fset := token.NewFileSet()
+			node, err := parser.ParseFile(fset, "test", example.Expected, parser.AllErrors)
+
+			require.NoError(t, err)
+
+			changed := recipes.NewDatabaseSQL().
+				Instrument(token.NewFileSet(), node, example.TargetPkg, "__instanaSensor")
+
+			assert.False(t, changed)
+
+			buf := bytes.NewBuffer(nil)
+			require.NoError(t, format.Node(buf, token.NewFileSet(), node))
+
+			dumpExpectedCode(t, "databasesql", name, buf)
 
 			assert.Equal(t, example.Expected, buf.String())
 		})

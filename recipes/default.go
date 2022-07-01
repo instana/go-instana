@@ -17,6 +17,7 @@ type defaultRecipe struct {
 
 type insertOption struct {
 	sensorPosition int
+	functionName   string
 }
 
 // instrument applies recipe to the ast Node
@@ -72,6 +73,12 @@ func (recipe *defaultRecipe) instrumentMethodCall(call *ast.CallExpr, targetPkg,
 
 			newArgs = append(args[:index+1], args[index:]...)
 			newArgs[index] = ast.NewIdent(sensorVar)
+		}
+
+		log.Println("instrumenting:", targetPkg, fnName)
+
+		if opt.functionName != "" {
+			fnName = opt.functionName
 		}
 
 		*call = ast.CallExpr{
