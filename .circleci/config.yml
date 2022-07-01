@@ -21,6 +21,11 @@ jobs:
             RUN_LINTER: "yes"
           command: make test
       - run:
+          name: Make test builds
+          environment:
+            RUN_LINTER: "yes"
+          command: make test-build
+      - run:
           name: Check copyright headers
           command: make legal
       - save_cache:
