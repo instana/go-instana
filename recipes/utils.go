@@ -86,8 +86,8 @@ func (s *stack[E]) Pop() *E {
 	return nil
 }
 
-// getPackageImportName extracts from the imports name of the import
-func getPackageImportName(fset *token.FileSet, f *ast.File, importPath string) (string, error) {
+// GetPackageImportName extracts from the imports name of the import
+func GetPackageImportName(fset *token.FileSet, f *ast.File, importPath string) (string, error) {
 	for _, importGroup := range astutil.Imports(fset, f) {
 		for _, importSpec := range importGroup {
 			if importSpec.Path == nil {

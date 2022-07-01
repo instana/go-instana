@@ -67,7 +67,7 @@ func (recipe *Sarama) instrumentMessagesAndSending(fset *token.FileSet, f ast.No
 
 	if v, ok := f.(*ast.File); ok {
 		// try to get context variable name
-		contextImportName, err := getPackageImportName(fset, v, "context")
+		contextImportName, err := GetPackageImportName(fset, v, "context")
 
 		// if no proper context import found
 		if err != nil {
