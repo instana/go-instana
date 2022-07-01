@@ -21,9 +21,10 @@ jobs:
             RUN_LINTER: "yes"
           command: make test
       - run:
+          name: Install go-instana
+          command: go install
+      - run:
           name: Make test builds
-          environment:
-            RUN_LINTER: "yes"
           command: make test-build
       - run:
           name: Check copyright headers
