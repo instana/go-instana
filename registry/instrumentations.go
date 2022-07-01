@@ -52,6 +52,27 @@ func (r *Registry) InstrumentationRecipe(targetPkg string) Recipe {
 	return r.instrumentation[targetPkg]
 }
 
+// ListNames returns list of the package names, that has registered instrumentations.
+func (r *Registry) ListNames() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var res []string
+
+	for name := range r.instrumentation {
+		res = append(res, name)
+	}
+
+	return res
+}
+
+// Unregister the recipe by package name.
+func (r *Registry) Unregister(targetPkg string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.instrumentation, targetPkg)
+}
+
 type Instrumentation interface {
 	// ImportPath returns instrumentation import path
 	ImportPath() string

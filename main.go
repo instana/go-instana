@@ -31,7 +31,19 @@ const SensorPackage = "github.com/instana/go-sensor"
 var verRegexp = regexp.MustCompile(`v\d+$`)
 
 var args struct {
-	Verbose bool
+	Verbose          bool
+	ExcludedPackages arrayFlags
+}
+
+type arrayFlags []string
+
+func (i *arrayFlags) String() string {
+	return strings.Join(*i, ",")
+}
+
+func (i *arrayFlags) Set(value string) error {
+	*i = append(*i, value)
+	return nil
 }
 
 func Usage() {
@@ -54,7 +66,13 @@ func main() {
 	flag.Usage = Usage
 
 	flag.BoolVar(&args.Verbose, "x", false, "Print out instrumentation steps")
+	flag.Var(&args.ExcludedPackages, "e", "Exclude package")
 	flag.Parse()
+
+	for _, packageToExclude := range args.ExcludedPackages {
+		log.Println("unregister:", packageToExclude)
+		registry.Default.Unregister(packageToExclude)
+	}
 
 	if !args.Verbose {
 		log.SetOutput(io.Discard)
@@ -68,6 +86,9 @@ func main() {
 		return
 	case "instrument":
 		instrumentCommand()
+		return
+	case "list":
+		listCommand()
 		return
 	}
 
