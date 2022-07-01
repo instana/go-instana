@@ -9,7 +9,6 @@ import (
 	"go/ast"
 	"go/token"
 	"golang.org/x/tools/go/ast/astutil"
-	"log"
 	"path"
 	"regexp"
 	"strconv"
@@ -107,16 +106,6 @@ func GetPackageImportName(fset *token.FileSet, f *ast.File, importPath string) (
 	}
 
 	return "", errors.New("no import found for " + importPath)
-}
-
-func tryGetPackageImportName(fset *token.FileSet, f *ast.File, importPath string) string {
-	v, err := GetPackageImportName(fset, f, importPath)
-	if err != nil {
-		log.Println(err)
-		return ""
-	}
-
-	return v
 }
 
 // ExtractLocalImportName returns last part of the import path ignoring a version suffix

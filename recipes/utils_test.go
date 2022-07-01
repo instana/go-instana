@@ -78,12 +78,12 @@ func main() {
 	assert.NoError(t, err)
 	assert.Equal(t, "db", p)
 
-	p, err = recipes.GetPackageImportName(fset, node, "point")
+	_, err = recipes.GetPackageImportName(fset, node, "point")
 	assert.Error(t, err)
 
-	p, err = recipes.GetPackageImportName(fset, node, "dash")
+	_, err = recipes.GetPackageImportName(fset, node, "dash")
 	assert.Error(t, err)
 
-	p, err = recipes.GetPackageImportName(fset, node, "???")
+	_, err = recipes.GetPackageImportName(fset, node, "???")
 	assert.Error(t, err)
 }
