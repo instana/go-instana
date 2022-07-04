@@ -7,7 +7,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/instana/go-instana/recipes"
+	"github.com/instana/go-instana/internal/recipes"
+	"github.com/instana/go-instana/internal/registry"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -21,8 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	_ "github.com/instana/go-instana/recipes"
-	"github.com/instana/go-instana/registry"
+	_ "github.com/instana/go-instana/internal/recipes"
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -78,7 +78,7 @@ func main() {
 
 	switch flag.Arg(0) {
 	case "add":
-		if err := AddCommand(flag.Args()[1:]); err != nil {
+		if err := addCommand(flag.Args()[1:]); err != nil {
 			log.Fatalln("failed to add Instana sensor:", err)
 		}
 		return
@@ -90,12 +90,12 @@ func main() {
 		return
 	}
 
-	nextCmd := ParseToolchainCmd(flag.Args())
+	nextCmd := parseToolchainCmd(flag.Args())
 	if nextCmd == nil {
 		log.Fatalln(os.Args[0], "is expected to be executed as a part of Go build toolchain")
 	}
 
-	nextCmdFlags, err := ParseToolchainCompileArgs(nextCmd.Args[1:])
+	nextCmdFlags, err := parseToolchainCompileArgs(nextCmd.Args[1:])
 	if err != nil {
 		log.Println("error parsing flags: ", err)
 	}
@@ -189,7 +189,7 @@ func instrumentCode(path string) error {
 			continue
 		}
 
-		sensorName := LookupInstanaSensor(pkg)
+		sensorName := lookupInstanaSensorInPackage(pkg)
 		if sensorName == "" {
 			log.Printf("%s: could not find Instana sensor, skipping", pkg.Name)
 			continue
@@ -198,7 +198,7 @@ func instrumentCode(path string) error {
 		for fName, f := range pkg.Files {
 			log.Printf("processing %s...", fName)
 
-			if err := writeNodeToFile(fset, fName, Instrument(fset, f, sensorName, importedInstrumentationPackages)); err != nil {
+			if err := writeNodeToFile(fset, fName, instrument(fset, f, sensorName, importedInstrumentationPackages)); err != nil {
 				log.Printf("failed to process %s: %s", fName, err)
 				continue
 			}
@@ -249,8 +249,8 @@ func fixImports(tmpFile string) error {
 	return fd.Close()
 }
 
-// Instrument processes an ast.File and applies instrumentation recipes to it
-func Instrument(fset *token.FileSet, f *ast.File, sensorVar string, availableInstrumentationPackages map[string]string) ast.Node {
+// instrument processes an ast.File and applies instrumentation recipes to it
+func instrument(fset *token.FileSet, f *ast.File, sensorVar string, availableInstrumentationPackages map[string]string) ast.Node {
 	for pkgName, targetPkg := range buildImportsMap(f) {
 		if _, ok := availableInstrumentationPackages[registry.Default.InstrumentationImportPath(targetPkg)]; !ok {
 			continue

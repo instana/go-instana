@@ -1,7 +1,7 @@
 // (c) Copyright IBM Corp. 2021
 // (c) Copyright Instana Inc. 2020
 
-package main_test
+package main
 
 import (
 	"go/ast"
@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	main "github.com/instana/go-instana"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +37,7 @@ func TestLookupInstanaSensor(t *testing.T) {
 			require.Len(t, pkgs, 1)
 
 			for _, pkg := range pkgs {
-				assert.Equal(t, example.Expected, main.LookupInstanaSensor(pkg))
+				assert.Equal(t, example.Expected, lookupInstanaSensorInPackage(pkg))
 			}
 		})
 	}
@@ -56,7 +55,7 @@ func TestWriteInstanaGoFile(t *testing.T) {
 	instanaGoFD, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0666)
 	assert.NoError(t, err)
 
-	notEmpty, err := main.WriteInstanaGoFile(instanaGoFD, "main", true, []string{})
+	notEmpty, err := writeInstanaGoFile(instanaGoFD, "main", true, []string{})
 	require.NoError(t, err)
 	assert.True(t, notEmpty)
 	defer instanaGoFD.Close()
@@ -64,7 +63,7 @@ func TestWriteInstanaGoFile(t *testing.T) {
 	code, err := parser.ParseFile(token.NewFileSet(), filePath, nil, parser.AllErrors)
 	require.NoError(t, err)
 
-	if assertImportsPackage(t, code.Imports, "instana", main.SensorPackage) {
+	if assertImportsPackage(t, code.Imports, "instana", SensorPackage) {
 		t.Run("instana.go exists", func(t *testing.T) {
 			contentBefore, err := os.ReadFile(filePath)
 			require.NoError(t, err)
@@ -73,7 +72,7 @@ func TestWriteInstanaGoFile(t *testing.T) {
 			assert.NoError(t, err)
 			defer fd.Close()
 
-			notEmpty, err = main.WriteInstanaGoFile(fd, "main", true, []string{})
+			notEmpty, err = writeInstanaGoFile(fd, "main", true, []string{})
 			assert.NoError(t, err)
 			assert.True(t, notEmpty)
 
@@ -143,8 +142,8 @@ package main
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := main.IsGeneratedByGoInstana(tt.args.r); got != tt.want {
-				t.Errorf("IsGeneratedByGoInstana() = %v, want %v", got, tt.want)
+			if got := isGeneratedByGoInstana(tt.args.r); got != tt.want {
+				t.Errorf("isGeneratedByGoInstana() = %v, want %v", got, tt.want)
 			}
 		})
 	}

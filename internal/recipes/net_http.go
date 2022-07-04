@@ -4,7 +4,7 @@
 package recipes
 
 import (
-	"github.com/instana/go-instana/registry"
+	"github.com/instana/go-instana/internal/registry"
 	"go/ast"
 	"go/token"
 	"log"

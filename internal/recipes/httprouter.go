@@ -3,11 +3,11 @@
 package recipes
 
 import (
+	"github.com/instana/go-instana/internal/registry"
 	"go/ast"
 	"go/token"
 	"log"
 
-	"github.com/instana/go-instana/registry"
 	"golang.org/x/tools/go/ast/astutil"
 )
 

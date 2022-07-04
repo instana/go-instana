@@ -5,12 +5,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/instana/go-instana/internal/search"
 	"io/fs"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/instana/go-instana/search"
 )
 
 // collectSourcePaths returns a sorted list of directories under the root dir matching given set of patterns and

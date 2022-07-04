@@ -9,10 +9,10 @@ import (
 	"strings"
 )
 
-// ParseToolchainCmd returns an exec.Cmd to execute the Go toolchain command
+// parseToolchainCmd returns an exec.Cmd to execute the Go toolchain command
 // passed as an argument string. It may return nil in case there were no args
 // provided.
-func ParseToolchainCmd(args []string) *exec.Cmd {
+func parseToolchainCmd(args []string) *exec.Cmd {
 	if len(args) == 0 {
 		return nil
 	}
@@ -34,9 +34,9 @@ func (f toolchainCompileArgs) Complete() bool {
 	return f.Output != "" && f.Package != ""
 }
 
-// ParseToolchainCompileArgs parses the $GOTOOLDIR/compile args and extracts the list
+// parseToolchainCompileArgs parses the $GOTOOLDIR/compile args and extracts the list
 // of files to compile
-func ParseToolchainCompileArgs(args []string) (toolchainCompileArgs, error) {
+func parseToolchainCompileArgs(args []string) (toolchainCompileArgs, error) {
 	var flags toolchainCompileArgs
 
 	for i := range args {

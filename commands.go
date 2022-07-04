@@ -6,7 +6,7 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"github.com/instana/go-instana/registry"
+	"github.com/instana/go-instana/internal/registry"
 	"go/ast"
 	"go/build"
 	"go/parser"
@@ -19,10 +19,10 @@ import (
 	"strings"
 )
 
-// AddCommand handles the `go-instana add` execution. It looks up the packages that match given set of
+// addCommand handles the `go-instana add` execution. It looks up the packages that match given set of
 // patterns and adds an instance of *instana.Sensor to those that do not contain one yet. It skips packages
 // that already have a sensor instance in the global scope.
-func AddCommand(patterns []string) error {
+func addCommand(patterns []string) error {
 	if len(patterns) == 0 {
 		patterns = append(patterns, "./...")
 	}
@@ -42,7 +42,7 @@ func AddCommand(patterns []string) error {
 			log.Println("reading "+instanaGoFileName+" error:", err.Error())
 		}
 
-		if err == nil && IsGeneratedByGoInstana(bytes.NewBuffer(data)) {
+		if err == nil && isGeneratedByGoInstana(bytes.NewBuffer(data)) {
 			if err := os.Remove(filePath); err != nil {
 				log.Println("remove "+instanaGoFileName+" error:", err.Error())
 			} else {
@@ -64,8 +64,8 @@ func AddCommand(patterns []string) error {
 			return fmt.Errorf("failed to create/open file %s: %w", filePath, err)
 		}
 
-		sensorNotFound := LookupInstanaSensor(pkg) == ""
-		notEmpty, err := WriteInstanaGoFile(instanaGoFD, pkg.Name, sensorNotFound, instrumentationPackagesToImport)
+		sensorNotFound := lookupInstanaSensorInPackage(pkg) == ""
+		notEmpty, err := writeInstanaGoFile(instanaGoFD, pkg.Name, sensorNotFound, instrumentationPackagesToImport)
 		if err != nil {
 			os.Remove(filePath)
 			return err

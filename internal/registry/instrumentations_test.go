@@ -4,10 +4,10 @@
 package registry_test
 
 import (
+	"github.com/instana/go-instana/internal/recipes"
+	"github.com/instana/go-instana/internal/registry"
 	"testing"
 
-	"github.com/instana/go-instana/recipes"
-	"github.com/instana/go-instana/registry"
 	"github.com/stretchr/testify/assert"
 )
 
