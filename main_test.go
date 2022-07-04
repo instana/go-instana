@@ -55,7 +55,7 @@ func main() {
 
 	require.NoError(t, err)
 
-	Instrument(fset, f, "__instanaSensor", availableInstrumentationPkgs)
+	instrument(fset, f, "__instanaSensor", availableInstrumentationPkgs)
 
 	buf := bytes.NewBuffer(nil)
 

@@ -2,7 +2,7 @@ package recipes_test
 
 import (
 	"bytes"
-	"github.com/instana/go-instana/recipes"
+	"github.com/instana/go-instana/internal/recipes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go/parser"
@@ -18,7 +18,7 @@ func dumpExpectedCode(t *testing.T, pkgName, name string, buf *bytes.Buffer) {
 		pkgName = strings.ReplaceAll(pkgName, " ", "_")
 		name = strings.ReplaceAll(name, " ", "_")
 
-		p := filepath.Join("../testdata/tmp", pkgName, name)
+		p := filepath.Join("../../testdata/tmp", pkgName, name)
 		assert.NoError(t, os.MkdirAll(p, 0700))
 
 		f, err := os.OpenFile(filepath.Join(p, name+".go"), os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0666)

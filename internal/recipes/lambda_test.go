@@ -4,12 +4,12 @@ package recipes_test
 
 import (
 	"bytes"
+	"github.com/instana/go-instana/internal/recipes"
 	"go/format"
 	"go/parser"
 	"go/token"
 	"testing"
 
-	"github.com/instana/go-instana/recipes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
