@@ -45,6 +45,8 @@ func AddCommand(patterns []string) error {
 		if err == nil && IsGeneratedByGoInstana(bytes.NewBuffer(data)) {
 			if err := os.Remove(filePath); err != nil {
 				log.Println("remove "+instanaGoFileName+" error:", err.Error())
+			} else {
+				log.Println("removed ", instanaGoFileName)
 			}
 		}
 
