@@ -1,6 +1,8 @@
 Go Instana
 ==========
 
+This tool currently is in the alpha stage. Please report any bugs and suggestions as an issue.
+
 An Instana instrumentation tool for Go applications. `go-instana` is designed to work as a part of
 Go toolchain, applying instrumentation patches during the compile time.
 
@@ -174,5 +176,7 @@ The client is instrumented by modifying `Dial` parameters.
 
 Http handlers are instrumented by wrapping `http.HandleFunc` and/or `http.Handle` handler parameter.
 
-Clients are instrumented only if they are created with instantiated like this `client := http.Client{}` in the code.
+Clients are instrumented only if they are initialized as `http.Client{}` or `&http.Client{}` in the code. Creation with
+`new` is not supported.
+
 The default client will be not instrumented.
