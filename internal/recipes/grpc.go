@@ -8,7 +8,6 @@ import (
 	"go/ast"
 	"go/token"
 	"golang.org/x/tools/go/ast/astutil"
-	"log"
 )
 
 func init() {
@@ -45,10 +44,7 @@ func (recipe *GRPC) Instrument(fset *token.FileSet, f ast.Node, targetPkg, senso
 	)
 
 	if changed {
-		if val, ok := f.(*ast.File); ok {
-			log.Printf("AddNamedImport: %s %s", recipe.InstanaPkg, recipe.ImportPath())
-			astutil.AddNamedImport(fset, val, recipe.InstanaPkg, recipe.ImportPath())
-		}
+		addNamedImport(fset, f, recipe.InstanaPkg, recipe.ImportPath())
 	}
 
 	return changed

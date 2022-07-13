@@ -6,8 +6,6 @@ import (
 	"github.com/instana/go-instana/internal/registry"
 	"go/ast"
 	"go/token"
-	"log"
-
 	"golang.org/x/tools/go/ast/astutil"
 )
 
@@ -94,10 +92,7 @@ func (recipe *HttpRouter) Instrument(fset *token.FileSet, f ast.Node, targetPkg,
 	})
 
 	if changed {
-		if val, ok := f.(*ast.File); ok {
-			log.Printf("AddNamedImport: %s %s", recipe.InstanaPkg, recipe.ImportPath())
-			astutil.AddNamedImport(fset, val, recipe.InstanaPkg, recipe.ImportPath())
-		}
+		addNamedImport(fset, f, recipe.InstanaPkg, recipe.ImportPath())
 	}
 
 	return changed

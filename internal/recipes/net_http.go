@@ -7,7 +7,6 @@ import (
 	"github.com/instana/go-instana/internal/registry"
 	"go/ast"
 	"go/token"
-	"log"
 
 	"golang.org/x/tools/go/ast/astutil"
 )
@@ -66,12 +65,8 @@ func (recipe *NetHTTP) instrumentMethodCall(call *ast.CallExpr, targetPkg, senso
 
 		// Double instrumentation check: handler is not an already instrumented http.HandlerFunc?
 		if _, ok := assertFunctionName(handler, recipe.InstanaPkg, "TracingHandlerFunc"); ok {
-			log.Println("skipping an already instrumented call to net/http.HandleFunc() at pos", call.Pos())
-
 			return false
 		}
-
-		log.Println("instrumenting net/http.HandleFunc() call at pos", call.Pos())
 
 		recipe.instrumentHandleFunc(call, handler, sensorVar)
 
@@ -83,14 +78,10 @@ func (recipe *NetHTTP) instrumentMethodCall(call *ast.CallExpr, targetPkg, senso
 		if call, ok := assertFunctionName(handler, targetPkg, "HandlerFunc"); ok {
 			if len(call.Args) > 0 {
 				if _, ok := assertFunctionName(call.Args[0], recipe.InstanaPkg, "TracingHandlerFunc"); ok {
-					log.Println("skipping an already instrumented call to net/http.Handle() at pos", call.Pos())
-
 					return false
 				}
 			}
 		}
-
-		log.Println("instrumenting net/http.Handle() call at pos", call.Pos())
 
 		// Replace http.Handle with http.HandlerFunc, since instana.TracingHandleFunc() returns
 		// a function instead of http.Handler
@@ -144,13 +135,10 @@ func (recipe *NetHTTP) instrumentCompositeLit(lit *ast.CompositeLit, targetPkg, 
 				// Double instrumentation check: is the transport already wrapped?
 				if call, ok := kv.Value.(*ast.CallExpr); ok {
 					if pkg, name, ok := extractFunctionName(call); ok && pkg == recipe.InstanaPkg && name == "RoundTripper" {
-						log.Println("skipping an already instrumented (*http.Client).Transport at pos", kv.Value.Pos())
-
 						return false
 					}
 				}
 
-				log.Println("instrumenting (*http.Client).Transport at pos", kv.Value.Pos())
 				kv.Value = recipe.instrumentTransport(kv.Value, sensorVar)
 
 				return true
@@ -158,7 +146,6 @@ func (recipe *NetHTTP) instrumentCompositeLit(lit *ast.CompositeLit, targetPkg, 
 		}
 
 		// Initialize (http.Client).Transport otherwise with instana.RoundTripper
-		log.Println("instrumenting *http.Client at pos", lit.Pos())
 		lit.Elts = append(lit.Elts, &ast.KeyValueExpr{
 			Key:   ast.NewIdent("Transport"),
 			Value: recipe.instrumentTransport(ast.NewIdent("nil"), sensorVar),
