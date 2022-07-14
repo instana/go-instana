@@ -68,7 +68,7 @@ func (recipe *Sarama) instrumentMessagesAndSending(fset *token.FileSet, f ast.No
 
 		// if no proper context import found
 		if err != nil {
-			log.Warn().Msgf("sarama instrumentation : %s" + err.Error())
+			log.Debug().Msgf("sarama instrumentation : %s", err.Error())
 			return false
 		}
 

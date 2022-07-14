@@ -39,16 +39,18 @@ func addCommand(patterns []string) error {
 
 		filePath := filepath.Join(path, instanaGoFileName)
 
-		data, err := ioutil.ReadFile(filePath)
-		if err != nil {
-			log.Error().Msgf("reading %s error: %s", instanaGoFileName, err.Error())
-		}
+		if fileExists(filePath) {
+			data, err := ioutil.ReadFile(filePath)
+			if err != nil {
+				log.Error().Msgf("reading %s error: %s", instanaGoFileName, err.Error())
+			}
 
-		if err == nil && isGeneratedByGoInstana(bytes.NewBuffer(data)) {
-			if err := os.Remove(filePath); err != nil {
-				log.Error().Msgf("remove %s error: %s", instanaGoFileName, err.Error())
-			} else {
-				log.Debug().Msgf("removed %s", instanaGoFileName)
+			if err == nil && isGeneratedByGoInstana(bytes.NewBuffer(data)) {
+				if err := os.Remove(filePath); err != nil {
+					log.Error().Msgf("remove %s error: %s", instanaGoFileName, err.Error())
+				} else {
+					log.Debug().Msgf("removed %s", instanaGoFileName)
+				}
 			}
 		}
 
@@ -71,6 +73,10 @@ func addCommand(patterns []string) error {
 		notEmpty, err := writeInstanaGoFile(instanaGoFD, pkg.Name, sensorNotFound, instrumentationPackagesToImport)
 		if err != nil {
 			os.Remove(filePath)
+			return err
+		}
+
+		if err := fixImports(filePath); err != nil {
 			return err
 		}
 
@@ -213,4 +219,12 @@ func listCommand() {
 	for _, name := range names {
 		fmt.Println(name)
 	}
+}
+
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }

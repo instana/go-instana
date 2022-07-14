@@ -12,12 +12,14 @@ import (
 	"github.com/instana/go-instana/internal/registry"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/sergi/go-diff/diffmatchpatch"
 	"go/ast"
 	"go/format"
 	"go/parser"
 	"go/token"
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/imports"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -227,6 +229,22 @@ func writeNodeToFile(fset *token.FileSet, fName string, node ast.Node) error {
 		return err
 	}
 
+	oldF, err := ioutil.ReadFile(fName)
+	if err != nil {
+		return err
+	}
+	newF, err := ioutil.ReadFile(tmpFile)
+	if err != nil {
+		return err
+	}
+
+	if string(oldF) != string(newF) {
+		dmp := diffmatchpatch.New()
+		diffs := dmp.DiffMain(string(oldF), string(newF), false)
+
+		log.Debug().Msgf("CHANGES:\n%s", dmp.DiffPrettyText(diffs))
+	}
+
 	if err := os.Rename(tmpFile, fName); err != nil {
 		return err
 	} else {
@@ -236,7 +254,7 @@ func writeNodeToFile(fset *token.FileSet, fName string, node ast.Node) error {
 }
 
 func fixImports(tmpFile string) error {
-	fixedImports, err := imports.Process(tmpFile, nil, &imports.Options{AllErrors: true})
+	fixedImports, err := imports.Process(tmpFile, nil, &imports.Options{AllErrors: true, Comments: true})
 	if err != nil {
 		return fmt.Errorf("fixing imports failed for %s : %w", tmpFile, err)
 	}
