@@ -102,7 +102,7 @@ func findPackageInPath(path string, fset *token.FileSet) (*ast.Package, error) {
 	if len(pkgs) == 1 {
 		// get single element from map
 		for _, pkg := range pkgs {
-			log.Info().Msgf("found package %s with %d file(s)", pkg.Name, len(pkg.Files))
+			log.Debug().Msgf("found package %s with %d file(s)", pkg.Name, len(pkg.Files))
 			return pkg, nil
 		}
 	}
