@@ -124,7 +124,8 @@ func GetPackageImportName(fset *token.FileSet, f *ast.File, importPath string) (
 
 func addNamedImport(fset *token.FileSet, f ast.Node, instanaPkg string, importPath string) {
 	if val, ok := f.(*ast.File); ok {
-		log.Debug().Msgf("add named import: %s %s", instanaPkg, importPath)
-		astutil.AddNamedImport(fset, val, instanaPkg, importPath)
+		if astutil.AddNamedImport(fset, val, instanaPkg, importPath) {
+			log.Debug().Msgf("add named import: %s %s", instanaPkg, importPath)
+		}
 	}
 }
