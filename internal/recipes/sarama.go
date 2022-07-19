@@ -5,10 +5,10 @@ package recipes
 import (
 	"fmt"
 	"github.com/instana/go-instana/internal/registry"
+	"github.com/rs/zerolog/log"
 	"go/ast"
 	"go/token"
 	"golang.org/x/tools/go/ast/astutil"
-	"log"
 	"strings"
 )
 
@@ -48,10 +48,7 @@ func (recipe *Sarama) Instrument(fset *token.FileSet, f ast.Node, targetPkg, sen
 	changed = recipe.instrumentMessagesAndSending(fset, f) || changed
 
 	if changed {
-		if val, ok := f.(*ast.File); ok {
-			log.Printf("AddNamedImport: %s %s", recipe.InstanaPkg, recipe.ImportPath())
-			astutil.AddNamedImport(fset, val, recipe.InstanaPkg, recipe.ImportPath())
-		}
+		addNamedImport(fset, f, recipe.InstanaPkg, recipe.ImportPath())
 	}
 
 	return changed
@@ -71,7 +68,7 @@ func (recipe *Sarama) instrumentMessagesAndSending(fset *token.FileSet, f ast.No
 
 		// if no proper context import found
 		if err != nil {
-			log.Println(err)
+			log.Debug().Msgf("sarama instrumentation : %s", err.Error())
 			return false
 		}
 
@@ -287,7 +284,7 @@ func (recipe *Sarama) tryGetContextVariableNameInTheFunctionDeclaration(contextI
 	if fdcl.Type != nil && fdcl.Type.Params != nil {
 		for _, field := range fdcl.Type.Params.List {
 			if len(field.Names) != 1 {
-				log.Println("declaration has more than 1 field.Names")
+				log.Warn().Msg("declaration has more than 1 field.Names. Skipping...")
 				continue
 			}
 
@@ -298,7 +295,7 @@ func (recipe *Sarama) tryGetContextVariableNameInTheFunctionDeclaration(contextI
 	}
 
 	if len(ctxNames) != 1 {
-		log.Println("expecting only one context in the function declaration")
+		log.Warn().Msg("expecting only one context in the function declaration. Skipping...")
 		return "", false
 	}
 

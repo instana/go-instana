@@ -82,12 +82,13 @@ var instanaGoTmpl = template.Must(template.New(instanaGoFileName).Parse(`// Code
 package {{ .Package }}
 
 import (
-    {{if .AddSensor}}instana "{{ .InstanaPackage }}"{{ end }}
-    {{ range .InstrumentationPackages }}
-    _ "{{ . }}"{{ end }}
+	{{if .AddSensor}}instana "{{ .InstanaPackage }}"{{ end }}
+{{ range .InstrumentationPackages }}
+	_ "{{ . }}"{{ end }}
 )
 {{if .AddSensor}}
 var {{ .SensorName }} = instana.NewSensor(""){{ end }}
+
 `))
 
 type instanaGoTmplArgs struct {

@@ -6,7 +6,6 @@ import (
 	"go/ast"
 	"go/token"
 	"golang.org/x/tools/go/ast/astutil"
-	"log"
 )
 
 const firstInsertPosition = 0
@@ -37,10 +36,7 @@ func (recipe *defaultRecipe) instrument(fset *token.FileSet, f ast.Node, targetP
 	)
 
 	if changed {
-		if val, ok := f.(*ast.File); ok {
-			log.Printf("AddNamedImport: %s %s", instanaPkg, importPath)
-			astutil.AddNamedImport(fset, val, instanaPkg, importPath)
-		}
+		addNamedImport(fset, f, instanaPkg, importPath)
 	}
 
 	return changed
@@ -74,8 +70,6 @@ func (recipe *defaultRecipe) instrumentMethodCall(call *ast.CallExpr, targetPkg,
 			newArgs = append(args[:index+1], args[index:]...)
 			newArgs[index] = ast.NewIdent(sensorVar)
 		}
-
-		log.Println("instrumenting:", targetPkg, fnName)
 
 		if opt.functionName != "" {
 			fnName = opt.functionName

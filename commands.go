@@ -7,12 +7,12 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/instana/go-instana/internal/registry"
+	"github.com/rs/zerolog/log"
 	"go/ast"
 	"go/build"
 	"go/parser"
 	"go/token"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,6 +23,8 @@ import (
 // patterns and adds an instance of *instana.Sensor to those that do not contain one yet. It skips packages
 // that already have a sensor instance in the global scope.
 func addCommand(patterns []string) error {
+	log.Info().Msg(`start "add" command`)
+	defer log.Info().Msg(`finish "add" command`)
 	if len(patterns) == 0 {
 		patterns = append(patterns, "./...")
 	}
@@ -33,20 +35,22 @@ func addCommand(patterns []string) error {
 	}
 
 	for _, path := range paths {
-		log.Println("processing", path, "...")
+		log.Info().Msgf("processing path %s", path)
 
 		filePath := filepath.Join(path, instanaGoFileName)
 
-		data, err := ioutil.ReadFile(filePath)
-		if err != nil {
-			log.Println("reading "+instanaGoFileName+" error:", err.Error())
-		}
+		if fileExists(filePath) {
+			data, err := ioutil.ReadFile(filePath)
+			if err != nil {
+				log.Error().Msgf("reading %s error: %s", instanaGoFileName, err.Error())
+			}
 
-		if err == nil && isGeneratedByGoInstana(bytes.NewBuffer(data)) {
-			if err := os.Remove(filePath); err != nil {
-				log.Println("remove "+instanaGoFileName+" error:", err.Error())
-			} else {
-				log.Println("removed ", instanaGoFileName)
+			if err == nil && isGeneratedByGoInstana(bytes.NewBuffer(data)) {
+				if err := os.Remove(filePath); err != nil {
+					log.Error().Msgf("remove %s error: %s", instanaGoFileName, err.Error())
+				} else {
+					log.Debug().Msgf("removed %s", instanaGoFileName)
+				}
 			}
 		}
 
@@ -59,15 +63,20 @@ func addCommand(patterns []string) error {
 		// check if files in the package have imports of the dependencies that can be instrumented
 		instrumentationPackagesToImport := applicableInstrumentationPackages(pkg)
 
-		instanaGoFD, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0666)
+		instanaGoFD, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_SYNC, 0666)
 		if err != nil {
 			return fmt.Errorf("failed to create/open file %s: %w", filePath, err)
 		}
+		log.Info().Msgf("created %s", filePath)
 
 		sensorNotFound := lookupInstanaSensorInPackage(pkg) == ""
 		notEmpty, err := writeInstanaGoFile(instanaGoFD, pkg.Name, sensorNotFound, instrumentationPackagesToImport)
 		if err != nil {
 			os.Remove(filePath)
+			return err
+		}
+
+		if err := fixImports(filePath); err != nil {
 			return err
 		}
 
@@ -93,7 +102,7 @@ func findPackageInPath(path string, fset *token.FileSet) (*ast.Package, error) {
 	if len(pkgs) == 1 {
 		// get single element from map
 		for _, pkg := range pkgs {
-			log.Printf("found package %s with %d file(s)", pkg.Name, len(pkg.Files))
+			log.Debug().Msgf("found package %s with %d file(s)", pkg.Name, len(pkg.Files))
 			return pkg, nil
 		}
 	}
@@ -140,15 +149,18 @@ func applicableInstrumentationPackages(pkg *ast.Package) []string {
 
 // instrumentCommand handles the `go-instana instrument` execution
 func instrumentCommand() {
+	log.Info().Msg(`start "instrument" command`)
+	defer log.Info().Msg(`finish "instrument" command`)
+
 	cd, err := os.Getwd()
 	if err != nil {
-		log.Fatalln("getwd error:", err)
+		log.Fatal().Msgf("getwd error: %s", err.Error())
 	}
 
-	log.Println("current directory:", cd)
+	log.Debug().Msgf("current directory: %s", cd)
 	files, err := ioutil.ReadDir(cd)
 	if err != nil {
-		log.Fatalln("read dir error:", err)
+		log.Fatal().Msgf("read dir error: %s", err.Error())
 	}
 
 	isModuleRoot := false
@@ -160,7 +172,7 @@ func instrumentCommand() {
 	}
 
 	if !isModuleRoot {
-		log.Fatalln(cd, " is not a module root")
+		log.Fatal().Msgf("%s is not a module root", cd)
 		return
 	}
 
@@ -189,13 +201,12 @@ func instrumentCommand() {
 		})
 
 	if err != nil {
-		log.Fatalln("can't collect paths error:", err)
+		log.Fatal().Msgf("can't collect paths error: %s", err.Error())
 	}
 
 	for p := range uniqPaths {
-		log.Println("instrumenting", p)
 		if err := instrumentCode(p); err != nil {
-			log.Fatalf("instrumentation error: %s", err.Error())
+			log.Fatal().Msgf("instrumentation error: %s", err.Error())
 		}
 	}
 }
@@ -208,4 +219,12 @@ func listCommand() {
 	for _, name := range names {
 		fmt.Println(name)
 	}
+}
+
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }

@@ -8,28 +8,28 @@ import (
 	"flag"
 	"fmt"
 	"github.com/instana/go-instana/internal/recipes"
+	_ "github.com/instana/go-instana/internal/recipes"
 	"github.com/instana/go-instana/internal/registry"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/sergi/go-diff/diffmatchpatch"
 	"go/ast"
 	"go/format"
 	"go/parser"
 	"go/token"
+	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/imports"
-	"io"
-	"log"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
-
-	_ "github.com/instana/go-instana/internal/recipes"
-	"golang.org/x/tools/go/ast/astutil"
 )
 
 const SensorPackage = "github.com/instana/go-sensor"
 
 var args struct {
-	Verbose          bool
 	ExcludedPackages arrayFlags
 }
 
@@ -58,28 +58,30 @@ Flags:
 }
 
 func main() {
-	log.SetFlags(0)
-	log.SetPrefix("go-instana: ")
-
 	flag.Usage = Usage
 
-	flag.BoolVar(&args.Verbose, "x", false, "Print out instrumentation steps")
+	debug := flag.Bool("debug", false, "sets log level to debug")
+
 	flag.Var(&args.ExcludedPackages, "e", "Exclude package")
 	flag.Parse()
 
-	for _, packageToExclude := range args.ExcludedPackages {
-		log.Println("unregister:", packageToExclude)
-		registry.Default.Unregister(packageToExclude)
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	if *debug {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		log.Warn().Msg("DEBUG MODE IS ON")
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 
-	if !args.Verbose {
-		log.SetOutput(io.Discard)
+	for _, packageToExclude := range args.ExcludedPackages {
+		log.Info().Msgf("disable instrumentation for: %s", packageToExclude)
+		registry.Default.Unregister(packageToExclude)
 	}
 
 	switch flag.Arg(0) {
 	case "add":
 		if err := addCommand(flag.Args()[1:]); err != nil {
-			log.Fatalln("failed to add Instana sensor:", err)
+			log.Fatal().Msgf("failed to add Instana sensor: %s", err)
 		}
 		return
 	case "instrument":
@@ -92,17 +94,17 @@ func main() {
 
 	nextCmd := parseToolchainCmd(flag.Args())
 	if nextCmd == nil {
-		log.Fatalln(os.Args[0], "is expected to be executed as a part of Go build toolchain")
+		log.Fatal().Msgf("%s is expected to be executed as a part of Go build toolchain", os.Args[0])
 	}
 
 	nextCmdFlags, err := parseToolchainCompileArgs(nextCmd.Args[1:])
 	if err != nil {
-		log.Println("error parsing flags: ", err)
+		log.Error().Msgf("error parsing flags: %s", err.Error())
 	}
 
 	cwd, err := filepath.Abs(".")
 	if err != nil {
-		log.Fatalln("failed to get current working dir:", err)
+		log.Fatal().Msgf("failed to get current working dir: %s", err.Error())
 	}
 
 	if filepath.Base(nextCmd.Path) == "compile" && nextCmdFlags.Complete() {
@@ -127,7 +129,7 @@ func main() {
 			}
 
 			if err := instrumentCode(p); err != nil {
-				log.Println(p, ": failed apply instrumentation changes:", err)
+				log.Error().Msgf("%s : failed apply instrumentation changes: %s", p, err)
 			}
 		}
 	}
@@ -146,7 +148,7 @@ func forwardCmd(cmd *exec.Cmd) {
 			os.Exit(exitErr.ExitCode())
 		}
 
-		log.Fatalln(err)
+		log.Fatal().Msg(err.Error())
 	}
 }
 
@@ -171,7 +173,7 @@ func instanaPackageImports(fset *token.FileSet, files map[string]*ast.File) map[
 
 func instrumentCode(path string) error {
 	fset := token.NewFileSet()
-	log.Println("processing", path, "...")
+	log.Info().Msgf("processing path ./%s", path)
 
 	pkgs, err := parser.ParseDir(fset, path, func(fInfo os.FileInfo) bool {
 		return !strings.HasSuffix(fInfo.Name(), "_test.go")
@@ -181,25 +183,25 @@ func instrumentCode(path string) error {
 	}
 
 	for _, pkg := range pkgs {
-		log.Printf("found package %s with %d file(s)", pkg.Name, len(pkg.Files))
+		log.Debug().Msgf("found package %s with %d file(s)", pkg.Name, len(pkg.Files))
 
 		importedInstrumentationPackages := instanaPackageImports(fset, pkg.Files)
 		if len(importedInstrumentationPackages) == 0 {
-			log.Printf("imported instrumentation packages not found in %s", pkg.Name)
+			log.Info().Msgf("skip package %s : imported instrumentation packages not found", pkg.Name)
 			continue
 		}
 
 		sensorName := lookupInstanaSensorInPackage(pkg)
 		if sensorName == "" {
-			log.Printf("%s: could not find Instana sensor, skipping", pkg.Name)
+			log.Warn().Msgf("%s: could not find Instana sensor, skipping", pkg.Name)
 			continue
 		}
 
 		for fName, f := range pkg.Files {
-			log.Printf("processing %s...", fName)
+			log.Debug().Msgf("processing file %s", fName)
 
-			if err := writeNodeToFile(fset, fName, instrument(fset, f, sensorName, importedInstrumentationPackages)); err != nil {
-				log.Printf("failed to process %s: %s", fName, err)
+			if err := writeNodeToFile(fset, fName, instrument(fset, fName, f, sensorName, importedInstrumentationPackages)); err != nil {
+				log.Warn().Msgf("failed to process %s: %s", fName, err)
 				continue
 			}
 		}
@@ -213,10 +215,9 @@ func writeNodeToFile(fset *token.FileSet, fName string, node ast.Node) error {
 
 	fd, err := os.Create(tmpFile)
 	if err != nil {
-		log.Fatalf("failed to open %s for writing: %s", fName, err)
+		log.Fatal().Msgf("failed to open %s for writing: %s", tmpFile, err)
 	}
-
-	defer os.Remove(tmpFile)
+	log.Debug().Msgf("temporary file %s was created", tmpFile)
 
 	err = format.Node(fd, fset, node)
 	fd.Close()
@@ -228,18 +229,39 @@ func writeNodeToFile(fset *token.FileSet, fName string, node ast.Node) error {
 		return err
 	}
 
-	return os.Rename(tmpFile, fName)
+	oldF, err := ioutil.ReadFile(fName)
+	if err != nil {
+		return err
+	}
+	newF, err := ioutil.ReadFile(tmpFile)
+	if err != nil {
+		return err
+	}
+
+	if string(oldF) != string(newF) {
+		dmp := diffmatchpatch.New()
+		diffs := dmp.DiffMain(string(oldF), string(newF), false)
+
+		log.Debug().Msgf("CHANGES:\n%s", dmp.DiffPrettyText(diffs))
+	}
+
+	if err := os.Rename(tmpFile, fName); err != nil {
+		return err
+	} else {
+		log.Debug().Msgf("temporary file %s was removed", tmpFile)
+		return nil
+	}
 }
 
 func fixImports(tmpFile string) error {
-	fixedImports, err := imports.Process(tmpFile, nil, &imports.Options{AllErrors: true})
+	fixedImports, err := imports.Process(tmpFile, nil, &imports.Options{AllErrors: true, Comments: true})
 	if err != nil {
 		return fmt.Errorf("fixing imports failed for %s : %w", tmpFile, err)
 	}
 
 	fd, err := os.Create(tmpFile)
 	if err != nil {
-		log.Fatalf("failed to open %s for writing: %s", tmpFile, err)
+		log.Fatal().Msgf("failed to open %s for writing: %s", tmpFile, err)
 	}
 
 	if _, err := fd.Write(fixedImports); err != nil {
@@ -250,7 +272,7 @@ func fixImports(tmpFile string) error {
 }
 
 // instrument processes an ast.File and applies instrumentation recipes to it
-func instrument(fset *token.FileSet, f *ast.File, sensorVar string, availableInstrumentationPackages map[string]string) ast.Node {
+func instrument(fset *token.FileSet, fName string, f *ast.File, sensorVar string, availableInstrumentationPackages map[string]string) ast.Node {
 	for pkgName, targetPkg := range buildImportsMap(f) {
 		if _, ok := availableInstrumentationPackages[registry.Default.InstrumentationImportPath(targetPkg)]; !ok {
 			continue
@@ -258,8 +280,11 @@ func instrument(fset *token.FileSet, f *ast.File, sensorVar string, availableIns
 
 		if recipe := registry.Default.InstrumentationRecipe(targetPkg); recipe != nil {
 			changed := recipe.Instrument(fset, f, pkgName, sensorVar)
-
-			log.Printf("Package %s changed: %v\n", pkgName, changed)
+			if changed {
+				log.Info().Msgf("[CHANGED] file %s ", fName)
+			} else {
+				log.Debug().Msgf("[UNCHANGED] file %s ", fName)
+			}
 		}
 	}
 
@@ -270,7 +295,7 @@ func buildImportsMap(f *ast.File) map[string]string {
 	m := make(map[string]string)
 	for _, imp := range f.Imports {
 		if imp.Path == nil {
-			log.Printf("missing .Path in %#v", imp)
+			log.Warn().Msgf("missing .Path in %#v", imp)
 			continue
 		}
 

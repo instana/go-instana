@@ -6,6 +6,7 @@ package recipes
 import (
 	"errors"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"go/ast"
 	"go/token"
 	"golang.org/x/tools/go/ast/astutil"
@@ -119,4 +120,12 @@ func GetPackageImportName(fset *token.FileSet, f *ast.File, importPath string) (
 	}
 
 	return "", errors.New("no import found for " + importPath)
+}
+
+func addNamedImport(fset *token.FileSet, f ast.Node, instanaPkg string, importPath string) {
+	if val, ok := f.(*ast.File); ok {
+		if astutil.AddNamedImport(fset, val, instanaPkg, importPath) {
+			log.Debug().Msgf("add named import: %s %s", instanaPkg, importPath)
+		}
+	}
 }
