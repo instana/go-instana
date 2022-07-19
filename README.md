@@ -66,6 +66,13 @@ To see which packages might be instrumented, use `go-instana list`.
 
 To exclude packages from the instrumentation list use `e` flag. For example: `go-instana -e db -e sql list`.
 
+To enable debug mode, use `-debug` flag. Examples:
+
+```
+go-instana -debug add
+go-instana -debug instrument
+```
+
 # Instrumentations
 
 This section describes which libraries are supported by this tool. Also, it gives an understanding of which transformation
